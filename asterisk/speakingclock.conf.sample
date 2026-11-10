@@ -1,0 +1,24 @@
+; speakingclock.conf - app_speakingclock, the SpeakingClock() application
+;
+; In extensions.conf, for example:
+;
+;   exten => 123,1,SpeakingClock(tim-pat-simmons,t(Europe/London))
+;   exten => 1194,1,SpeakingClock(tim-gordon-gow,t(Australia/Sydney))
+;   exten => 767,1,SpeakingClock(atandt-mike,t(America/Los_Angeles)d(300))
+;
+; "speakingclock show voices" lists the voices.  "module reload
+; app_speakingclock" rereads this file and the voices.
+
+[general]
+; Where the voice folders are.  Default: <astdatadir>/sounds/speaking-clock
+;voicedir=/var/lib/asterisk/sounds/speaking-clock
+
+; The voice used when SpeakingClock() is given none.
+;default_voice=tim-pat-simmons
+
+; The time zone used when the t() option is not given.  Default: the
+; system's.
+;timezone=Europe/London
+
+; Hang up after this many seconds (0: never).  The d() option overrides it.
+;maxduration=180

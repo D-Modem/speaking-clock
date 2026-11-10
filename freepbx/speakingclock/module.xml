@@ -1,0 +1,30 @@
+<module>
+	<rawname>speakingclock</rawname>
+	<repo>unsupported</repo>
+	<name>Speaking Clock</name>
+	<version>16.0.1</version>
+	<publisher>D-Modem Authors</publisher>
+	<license>GPLv2+</license>
+	<licenselink>https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt</licenselink>
+	<category>Applications</category>
+	<description>
+		Telephone speaking clocks: "At the third stroke it will be..." in the voices of the UK's TIM, Australia's Gordon Gow, and dozens of talking clocks and speech synthesisers.
+		Each clock is a destination, and can have a number to dial.
+		Needs app_speakingclock.so in Asterisk and its voices (https://github.com/D-Modem/speaking-clock).
+	</description>
+	<more-info>https://github.com/D-Modem/speaking-clock</more-info>
+	<changelog>
+		*16.0.1* Clocks as destinations and dialable numbers, speakingclock.conf from the settings
+	</changelog>
+	<menuitems>
+		<speakingclock>Speaking Clock</speakingclock>
+	</menuitems>
+	<depends>
+		<version>16.0</version>
+		<module>core ge 16.0</module>
+	</depends>
+	<supported>
+		<version>16.0</version>
+		<version>17.0</version>
+	</supported>
+</module>
