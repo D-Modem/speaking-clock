@@ -1,0 +1,65 @@
+# Notice: the voice recordings
+
+The code in this repository (the Asterisk module, the FreePBX module and the
+tools) is licensed under the GNU General Public License, version 2 or (at
+your option) any later version. See [LICENSE](LICENSE).
+
+**That licence does not cover the recordings in [`voices/`](voices/).**
+Every recording belongs to its original owners: the telephone companies,
+museums, voice artists, speech-synthesiser makers and hobbyists who made
+them. They are not licensed under the GPL. They are collected here only so
+that a speaking clock can be built from them. No claim to them is made, and
+no copyright infringement is intended.
+
+If you own a recording here and want it credited differently or taken out,
+open an issue on this repository and it will be removed.
+
+`tools/build_voices.py` converted every recording to 8 kHz 16-bit mono WAV
+and renamed it (docs/voice-format.md). The original file name of each clip is
+listed under `[source] files=` in its voice's `voice.conf`. Any notes that
+came with a voice are kept beside it as `ORIGINAL-*`.
+
+## Where they came from
+
+### asterisk-tim (`voices/tim-*`)
+From [paulseward/asterisk-tim](https://github.com/paulseward/asterisk-tim).
+
+- **Pat Simmons** (`tim-pat-simmons`): the voice of the UK GPO / BT
+  speaking clock (TIM), 1963 to 1985. Recordings from Andy Emmerson and the
+  TIM2000 project. They are believed to come from a BT prototype digital
+  announcer loaded from the original magnetic-drum machine.
+- **Gordon Gow** (`tim-gordon-gow`): the voice of the Australian speaking
+  clock, 1954 to 1990. Recorded by Paul Seward from the glass-disc machine
+  held by the Science Museum, London.
+
+The asterisk-tim repository has no licence file. Its notes are kept as
+`ORIGINAL-README.md` in each voice.
+
+### Steve's Talking Clock voice library (most of `voices/`)
+From <http://clock.steve-audio.net/voices/>, the voices made for Steve's
+Talking Clock (a Windows talking-clock program). That page says: "Each voice
+is copyright to its original creator, and no copyright infringement is
+intended." Each voice's `voice.conf` names the package it came from and its
+download URL. The voices include:
+
+- recordings of talking clocks, watches and calculators: Hitachi, Sharp
+  EL-640, Sharp Talking Time, Radio Shack VoxClock I, II and III, Timex
+  Speakeasy, Satoki, Actim, Cobolt, Braille Lite, TalkBox and others;
+- speech synthesisers and TTS engines: AT&T Natural Voices (Audrey, Charles,
+  Lauren, Mike, Ray, Rich, Anjali), Cepstral, ScanSoft RealSpeak, NeoSpeech,
+  Eloquence, DoubleTalk, Keynote Gold, Dolphin Apollo, Echo, RC Systems,
+  Toshiba, Nokia, Outspoken, rsynth;
+- voices recorded by members of that community (Patrick Perdue, Kathleen
+  Perdue, Rainee Perdue, James Bowden, Julie Williams, Keao Wright, Derek
+  Lane, Shawn Klein, Andre Louis (Onj), Nick G, Tony and others), credited
+  in each voice's notes;
+- chimes and novelty clocks (Big Ben, windchimes, piano, Morse code, animal
+  sounds and more).
+
+The trademarks named belong to their owners. Synthesised voices remain
+subject to the terms of the engines that produced them.
+
+### garrysblog Speaking-Clock-MP3-Files (`voices/british-amy`, `voices/french-celine`)
+From [garrysblog/Speaking-Clock-MP3-Files](https://github.com/garrysblog/Speaking-Clock-MP3-Files),
+made with an online text-to-speech service for an Arduino clock. Its README
+says the files are "free to download and use in your own projects".
