@@ -1023,10 +1023,11 @@ static void compress(void)
 
 /* Sam's tone, fitted frame by frame against his recordings of the clock's
  * phrases (each frame matched to the same moment in his): more of his low
- * fundamental and of 1-2 kHz, less above 2.5 kHz.  dB at each frequency;
+ * fundamental and of 1-2 kHz, and treble set between that fit and his
+ * overall brightness, which the fit alone left short.  dB at each frequency;
  * Mike and Mary need none. */
 static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 7.3, -0.3, -1.9, 0, 1.8, -0.9, -1.7, -2.1, -2.6, -3.7, -4.2, -3.6, -3.5, -3.0 };
+static const double eq_sam[] = { 7.3, -0.3, -1.9, 0, 1.8, 0.1, 0.9, 0.8, 0.3, 0.2, 1.8, 2.4, 0.4, 0.2 };
 static const double *eq;
 
 static void equalise(void)
