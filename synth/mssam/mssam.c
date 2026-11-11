@@ -550,7 +550,7 @@ static void say_number(long n, char *out, size_t sz)
  * out by ACCENT1 and later ones by ACCENT2, and the last vowel falls to
  * END at the end of a sentence, or only to MORE before a comma, where more
  * is to come.  Measured from Sam's own recordings. */
-static double FINAL_V = 1.3, FINAL_C = 0.7, GOUT;	/* GOUT: Sam only */
+static double FINAL_V = 1.3, FINAL_C = 0.7;
 static const double TOP = 102, BOTTOM = 94, ACCENT1 = 32, ACCENT2 = 22, END = 73, MORE = 98;
 
 static void end_phrase(int from, int last)
@@ -854,23 +854,6 @@ static double gain_at(double g, int k)
 	return exp((1 - w) * log(g) + w * log(last_gain));
 }
 
-/* The RMS of a filter's impulse response: its gain on a flat excitation. */
-static double filter_gain(const double *a)
-{
-	double hm[MAXORDER] = { 0 }, E = 0;
-	int k, j;
-
-	for (k = 0; k < 400; k++) {
-		double y = k == 0;
-		for (j = 0; j < ORDER; j++)
-			y -= a[j + 1] * hm[j];
-		memmove(hm + 1, hm, (ORDER - 1) * sizeof(double));
-		hm[0] = y;
-		E += y * y;
-	}
-	return sqrt(E);
-}
-
 static void render(double rate, double pitch)
 {
 	/* the voice's own pitch against Sam's (plain syllables: 112 Hz) */
@@ -1011,8 +994,7 @@ static void render(double rate, double pitch)
 			last_voiced = s->voiced;
 			for (k = 0; k < len; k++) {
 				double y;
-				/* and so does the loudness; for Sam the stored loudness
-				 * is the sound's own, so the filter's gain comes out */
+				/* and so does the loudness */
 				if (k % 32 == 0) {
 					float l[MAXORDER];
 					double w = (k + 16.0) / len;
@@ -1022,8 +1004,6 @@ static void render(double rate, double pitch)
 						l[j] = (1 - w) * last[j] + w * s->lsf[j];
 					lsf_to_lpc(l, a);
 					g = norm * ((1 - w) * last_lvl + w * lvl);
-					if (GOUT > 0)
-						g /= pow(filter_gain(a), GOUT);
 				}
 				y = e[k] * g;
 				for (j = 0; j < ORDER; j++)
@@ -1099,7 +1079,7 @@ static void compress(void)
  * overall brightness, which the fit alone left short.  dB at each frequency;
  * Mike and Mary need none. */
 static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 6.8, 10.2, 4.6, 6.0, 6.3, 7.1, 2.6, 6.4, 4.3, 3.2, 1.8, 2.9, -1.1, 1.7 };
+static const double eq_sam[] = { 5.55, 10.7, 4.1, 8.0, 6.55, 6.6, 1.6, 5.4, 4.3, 2.2, 1.3, 2.9, -1.1, 1.7 };
 static const double *eq;
 
 static void equalise(void)
@@ -1224,19 +1204,19 @@ int main(int argc, char **argv)
 
 	if (!strcmp(voice, "sam")) {
 		/* fitted to 30 of his recordings (and checked on 10 more):
-		 * each sound's tone, its loudness over time and its length */
+		 * each sound's tone, its loudness over time, its length, and
+		 * how steady its pitch pulses are from one to the next */
 		eq = eq_sam;
-		PF_NUM = 0.7;
+		PF_NUM = 0.7375;
 		PF_DEN = 0.75;
-		FRIC = 5.35;
-		hiss_rate = 1.4;
-		GOUT = 0.0625;
+		FRIC = 7.3;
+		hiss_rate = 1.3;
 		FLAT = 1;
-		SMOOTH = 0.3625;
-		SMOOTH_HZ = 1800;
-		LIFTC = 0.35;
-		JOIN = 0.15;
-		COMPRESS = 0.375;
+		SMOOTH = 0.95;
+		SMOOTH_HZ = 4800;
+		LIFTC = 0.375;
+		JOIN = 0.175;
+		COMPRESS = 0.225;
 	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
