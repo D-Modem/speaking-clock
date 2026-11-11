@@ -1078,13 +1078,13 @@ static void compress(void)
  * fundamental and of 1-2 kHz, and treble set between that fit and his
  * overall brightness, which the fit alone left short.  dB at each frequency;
  * Mike and Mary need none. */
-static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 0.05, 11.45, 1.1, 7.25, 9.8, 6.85, 2.6, 6.9, 4.3, 3.2, 1.3, 2.9, -3.1, -0.3 };
+static const double eq_hz[] = { 80, 125, 180, 250, 350, 500, 700, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
+static const double eq_sam[] = { 4.1, 10.8, 4.2, 5.5, 7.1, 7.0, 7.2, 7.2, 9.8, 6.8, 2.6, 6.9, 4.3, 3.2, 1.3, 2.9, -3.1, -0.3 };
 static const double *eq;
 
 static void equalise(void)
 {
-	enum { TAPS = 129, NF = 256 };
+	enum { TAPS = 1023, NF = 1024 };
 	double h[TAPS], g[NF + 1], *y;
 	int ne = sizeof(eq_hz) / sizeof(eq_hz[0]), k, j;
 	size_t i;
