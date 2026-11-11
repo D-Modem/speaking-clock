@@ -452,21 +452,47 @@ static float *pt_synth(struct ptvoice *v, int *nout)
 	double total = nseg ? segs[nseg - 1].t0 + segs[nseg - 1].dur : 0;
 	int cap = (int)(total * 2.6 * FS / 1000) + 2 * FS, i, j;
 	float *out = calloc(cap, sizeof(float));
-	int *w = malloc(sizeof(int) * (ntok + 2));
+	int *w = malloc(sizeof(int) * (2 * ntok + 2)), nw = 0;
+	double *wants = malloc(sizeof(double) * (2 * ntok + 2));
 	double cur = 0;   /* output time of the next pitch mark, samples */
 
-	if (!out || !w)
+	if (!out || !w || !wants) {
+		free(out);
+		free(w);
+		free(wants);
 		return NULL;
-	for (i = 0; i < ntok; i++)
-		w[i] = pt_wave(toks[i].ph, i + 1 < ntok ? toks[i + 1].ph : 0, i ? toks[i - 1].ph : 0);
-
+	}
+	/* each phoneme becomes one wave-phoneme, except ch and j, which the
+	 * voice makes of t and sh, d and zh: the stop takes the phoneme's
+	 * first (closure) segment and the hiss the rest */
 	for (i = 0; i < ntok; i++) {
-		double want = 0, rate, t, end;
-		int k, l = i ? w[i - 1] : 0, r = i + 1 < ntok ? w[i + 1] : 0, voiced;
+		const char *name = toks[i].ph > 0 ? ph[toks[i].ph].name : "_";
+		double want = 0, first = -1;
+		int k;
 		for (k = 0; k < nseg; k++)
-			if (segs[k].tok == i)
+			if (segs[k].tok == i) {
+				if (first < 0)
+					first = segs[k].dur;
 				want += segs[k].dur;
+			}
 		want *= FS / 1000.0;
+		first *= FS / 1000.0;
+		if (!strcmp(name, "C") || !strcmp(name, "J")) {
+			if (first <= 0 || first >= want)
+				first = want * 0.4;
+			w[nw] = name[0] == 'C' ? 45 : 32;
+			wants[nw++] = first;
+			w[nw] = name[0] == 'C' ? 41 : 37;
+			wants[nw++] = want - first;
+			continue;
+		}
+		w[nw] = pt_wave(toks[i].ph, i + 1 < ntok ? toks[i + 1].ph : 0, i ? toks[i - 1].ph : 0);
+		wants[nw++] = want;
+	}
+
+	for (i = 0; i < nw; i++) {
+		double want = wants[i], rate, t, end;
+		int k, l = i ? w[i - 1] : 0, r = i + 1 < nw ? w[i + 1] : 0, voiced;
 		if (w[i] == 0) {   /* a pause */
 			cur += want;
 			continue;
@@ -511,6 +537,7 @@ static float *pt_synth(struct ptvoice *v, int *nout)
 		}
 	}
 	free(w);
+	free(wants);
 	*nout = (int)cur + 1 < cap ? (int)cur + 1 : cap;
 	pt_lowpass(out, *nout);
 	return out;

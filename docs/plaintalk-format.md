@@ -133,7 +133,7 @@ units have no list; the lags give the periods of the voiced ones.
 
 The text front end, timing and pitch are the same as for the MacInTalk 3
 voices. Each phoneme becomes a wave-phoneme (with the r-coloured vowels,
-and p, t, k after s), and is made of the second half of the diphone from
+and p, t, k after s; ch and j become two, t and sh, d and zh), and is made of the second half of the diphone from
 the phoneme before it and the first half of the diphone into the phoneme
 after it. That sound is changed to the length and pitch wanted with
 TD-PSOLA: each recorded period, in a window two periods wide, is placed at
