@@ -435,7 +435,7 @@ static const char *pronounce(const char *w)
 static int content_word(const char *w)
 {
 	static const char *fn[] = { "a", "an", "and", "at", "be", "by", "for", "in", "is", "it",
-		"it's", "its", "of", "on", "or", "the", "to", "will", NULL };
+		"it's", "its", "of", "on", "or", "that", "the", "this", "to", "was", "will", NULL };
 	int i;
 	for (i = 0; fn[i]; i++)
 		if (!strcmp(w, fn[i]))
@@ -478,7 +478,7 @@ static void add_word(const char *w, const char *phones, int content)
 		if (p < 0)
 			continue;
 		snd[nsnd++] = (struct sound){ .ph = p,
-			.vowel = stress < 0 ? 0 : 1 + (stress && content ? T_ACCENT : T_PLAIN) };
+			.vowel = stress < 0 ? 0 : 1 + (stress == 1 && content ? T_ACCENT : T_PLAIN) };
 	}
 	(void)w;
 	for (int i = first; i < nsnd; i++)
@@ -545,15 +545,31 @@ static void say_number(long n, char *out, size_t sz)
 /* The pitch of a phrase, in Sam's Hz (other voices are scaled to theirs):
  * it starts near TOP and sinks to BOTTOM, the first accented word stands
  * out by ACCENT1 and later ones by ACCENT2, and the last vowel falls to
- * END.  Measured from Sam's own recordings of the clock's phrases. */
-static const double TOP = 100, BOTTOM = 82, ACCENT1 = 22, ACCENT2 = 10, END = 73;
+ * END at the end of a sentence, or only to MORE before a comma, where more
+ * is to come.  Measured from Sam's own recordings. */
+static const double TOP = 102, BOTTOM = 94, ACCENT1 = 32, ACCENT2 = 22, END = 73, MORE = 98;
 
-static void end_phrase(int from)
+static void end_phrase(int from, int last)
 {
 	int i, nv = 0, j = 0, accents = 0;
 
 	for (i = from; i < nsnd; i++)
 		nv += snd[i].vowel != 0;
+	/* Sam does not accent a sentence's last word ("seconds", "Sam") */
+	if (last) {
+		int w, k;
+		for (i = nsnd - 1; i >= from && snd[i].vowel != 1 + T_ACCENT; i--)
+			;
+		for (w = i; w > from && snd[w].pos != POS_BEGIN && snd[w].pos != POS_SINGLE; w--)
+			;
+		/* only when another word carries the phrase's accent */
+		for (k = from; k < w && snd[k].vowel != 1 + T_ACCENT; k++)
+			;
+		if (i >= from && k < w)
+			for (; i >= w; i--)
+				if (snd[i].vowel == 1 + T_ACCENT)
+					snd[i].vowel = 1 + T_PLAIN;
+	}
 	for (i = from; i < nsnd; i++) {
 		double x0, x1, b0, b1, lift = 0;
 		if (!snd[i].vowel)
@@ -567,8 +583,10 @@ static void end_phrase(int from)
 		snd[i].f0[0] = b0 + lift;
 		snd[i].f0[1] = b1 + lift * 0.6;
 		if (++j == nv) {
-			snd[i].f0[0] = b0 + lift * 0.5;
-			snd[i].f0[1] = END;
+			/* a sentence's last word falls from the plain line; a
+			 * word before a comma keeps its accent and falls less */
+			snd[i].f0[0] = last ? b0 : b0 + lift;
+			snd[i].f0[1] = last ? END : MORE;
 		}
 	}
 }
@@ -619,17 +637,17 @@ static void parse_text(const char *text)
 			continue;
 		}
 		if (strchr(",;:", *s) && !(*s == ':' && isdigit((unsigned char)s[1]))) {
-			end_phrase(phrase);
+			end_phrase(phrase, 0);
 			add_pause(180);
 			phrase = nsnd;
 		} else if (strchr(".!?", *s)) {
-			end_phrase(phrase);
+			end_phrase(phrase, 1);
 			add_pause(350);
 			phrase = nsnd;
 		}
 		s++;
 	}
-	end_phrase(phrase);
+	end_phrase(phrase, 1);
 	add_pause(120);
 }
 
@@ -718,6 +736,8 @@ static const double JOIN = 0.6, LIFTC = 0.65;
 /* Each pitch pulse is blended with the one before: the stored pulses vary
  * more from one to the next than Sam's own speech does, which sounds rough. */
 static const double SMOOTH = 0.7;
+/* Sam's hiss and frication come out quieter than in his recordings. */
+static double FRIC = 1;
 static float sper[1024];
 static int have_per;
 static double last_gain;
@@ -907,7 +927,7 @@ static void render(double rate, double pitch)
 					e[k] = noise();
 					sum += e[k] * e[k];
 				}
-				g = gain_at(s->gain, sf) / (sqrt(sum / len) + 1e-9);
+				g = FRIC * gain_at(s->gain, sf) / (sqrt(sum / len) + 1e-9);
 			}
 			/* the spectrum glides from the last frame's to this one's,
 			 * in steps of 32 samples, so frames do not click */
@@ -989,12 +1009,13 @@ static void compress(void)
 	free(lev);
 }
 
-/* Sam's units come out darker than his own voice above 2.5 kHz (and a
- * little thin at the very bottom): this correction, measured against his
- * recordings of the clock's phrases, puts it back.  dB at each frequency;
- * Mike and Mary need none. */
+/* Sam's vowels come out with too little of the 2.5-4 kHz range that makes
+ * words clear (and a little thin at the very bottom): this correction,
+ * measured against his recordings of the clock's phrases, puts it back
+ * without adding hiss above it.  dB at each frequency; Mike and Mary need
+ * none. */
 static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 4.3, 0.4, -0.4, 0, 0.2, 1.1, 4.3, 3.6, 2.9, 2.0, 4.5, 6.1, 5.9, 3.9 };
+static const double eq_sam[] = { 4.3, 0.4, -0.6, -0.5, 0.5, 3.0, 6.5, 6.0, 3.5, -1.0, 0, 1.5, 1.5, 0 };
 static const double *eq;
 
 static void equalise(void)
@@ -1121,6 +1142,7 @@ int main(int argc, char **argv)
 		eq = eq_sam;
 		PF_NUM = 0.5;
 		PF_DEN = 0.75;
+		FRIC = 1.35;
 	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
