@@ -138,7 +138,9 @@ the phoneme before it and the first half of the diphone into the phoneme
 after it. That sound is changed to the length and pitch wanted with
 TD-PSOLA: each recorded period, in a window two periods wide, is placed at
 the spacing the pitch wants, and periods are repeated or dropped for the
-length. A low-pass filter at 6 kHz takes off the hiss of the coding (2
+length. b, d and g are not stretched: their release is in some voices only
+a quick start of voicing, which stretching turns into a glide, so they are
+put out as recorded with silence added to (or cut from) the closure. A low-pass filter at 6 kHz takes off the hiss of the coding (2
 bits a sample, 4 in high quality).
 For these voices the phrase ends slow down and fall less than for the
 MacInTalk 3 voices. The rest of the voice, Apple's rules for the timing and

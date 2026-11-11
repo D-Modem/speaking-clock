@@ -492,7 +492,7 @@ static float *pt_synth(struct ptvoice *v, int *nout)
 
 	for (i = 0; i < nw; i++) {
 		double want = wants[i], rate, t, end;
-		int k, l = i ? w[i - 1] : 0, r = i + 1 < nw ? w[i + 1] : 0, voiced;
+		int mid, k, l = i ? w[i - 1] : 0, r = i + 1 < nw ? w[i + 1] : 0, voiced;
 		if (w[i] == 0) {   /* a pause */
 			cur += want;
 			continue;
@@ -501,9 +501,34 @@ static float *pt_synth(struct ptvoice *v, int *nout)
 		voiced = w[i] < 38;
 		nsig = nmarks = 0;
 		pt_half(v, 1, l, w[i], voiced);
+		mid = nsig;
 		pt_half(v, 0, w[i], r, voiced);
 		if (!nmarks)
 			continue;
+		/* b, d, g: the middle is the closure, then comes the release,
+		 * which in some voices is only a quick start of voicing with no
+		 * burst.  Stretching it would turn that into a glide ("brown"
+		 * heard as "own"), so put the sound out as recorded and give the
+		 * stop its length in the closure, adding silence or cutting some */
+		if (w[i] >= 31 && w[i] <= 33) {
+			int len = (int)lrint(want), cut = 0, gap = 0, o = (int)lrint(cur), n;
+			if (len < nsig)
+				cut = nsig - len < mid ? nsig - len : mid;
+			else
+				gap = len - nsig;
+			for (j = 0, n = 0; j < nsig; j++) {
+				int oi;
+				if (j >= mid - cut && j < mid)
+					continue;
+				oi = o + n + (j >= mid ? gap : 0);
+				/* fade in over 2 ms, where the sound before rings out */
+				if (oi >= 0 && oi < cap)
+					out[oi] += (float)(sig[j] * (n < 44 ? n / 44.0 : 1));
+				n++;
+			}
+			cur += n + gap;
+			continue;
+		}
 		/* TD-PSOLA: put out the recorded periods, each in a window two
 		 * periods wide, at the spacing the pitch wants, repeating or
 		 * dropping periods to give the phoneme its length */
