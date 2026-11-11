@@ -12,8 +12,9 @@ Usage: tools/synth_voices.py OUT VOICE...    (OUT is normally ./voices)
 
 --live writes a live voice instead (mode=tts, live-<engine>-<voice>): no
 clips, the module runs the synthesiser on the Asterisk machine for each
-sentence as it is needed (dectalk and sam only; tts_program_dectalk and
-tts_program_sam in speakingclock.conf say where they are).
+sentence as it is needed (dectalk, sam and macintalk only;
+tts_program_dectalk, tts_program_sam and tts_program_macintalk in
+speakingclock.conf say where they are).
 
 Engines (a VOICE is engine:name, see --list):
   sapi4    Microsoft Speech API 4 voices (Microsoft Sam, Mike, Mary,
@@ -26,6 +27,10 @@ Engines (a VOICE is engine:name, see --list):
            https://github.com/s-macke/SAM.  $SAM is its `sam` program.
   mac      MacInTalk / PlainTalk voices, with macOS's own `say` (run this
            on a Mac).
+  macintalk  The MacInTalk 3 voices (Fred, Ralph, Kathy, Zarvox ...) spoken
+           by our own synthesiser, synth/macintalk, from Apple's voice data
+           (tools/fetch-macintalk.py gets it).  $MACINTALK is its program,
+           $MACINTALK_VOICES the voice folder.  Works with --live.
 
 Needs ffmpeg and sox.
 """
@@ -133,6 +138,30 @@ MAC_FAMILY = {
 }
 MAC = {v: f for f, vs in MAC_FAMILY.items() for v in vs}
 
+# The MacInTalk 3 voices of Mac OS 8.1, spoken by synth/macintalk.
+# id: (name, what the voice is like)
+MACINTALK = {
+    "fred": ("Fred", "the standard male voice"),
+    "ralph": ("Ralph", "a deep male voice"),
+    "kathy": ("Kathy", "the standard female voice"),
+    "junior": ("Junior", "a boy's voice"),
+    "princess": ("Princess", "a girl's voice"),
+    "zarvox": ("Zarvox", "a robot"),
+    "trinoids": ("Trinoids", "aliens speaking together"),
+    "whisper": ("Whisper", "a whisper"),
+    "albert": ("Albert", "a frog in the throat"),
+    "bahh": ("Bahh", "a bleating lamb"),
+    "bells": ("Bells", "spoken by bells"),
+    "boing": ("Boing", "spoken by a spring"),
+    "bubbles": ("Bubbles", "speaking under water"),
+    "cellos": ("Cellos", "sung by cellos, to In the Hall of the Mountain King"),
+    "pipe-organ": ("Pipe Organ", "sung by a pipe organ"),
+    "good-news": ("Good News", "sung to Pomp and Circumstance"),
+    "bad-news": ("Bad News", "sung to Chopin's funeral march"),
+    "deranged": ("Deranged", "an unhinged voice"),
+    "hysterical": ("Hysterical", "speaking through laughter"),
+}
+
 last_request = [0.0]
 
 
@@ -194,6 +223,15 @@ def mac(vid, text, out):
     os.unlink(aiff)
 
 
+def macintalk(vid, text, out):
+    prog = os.environ.get("MACINTALK", os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "synth", "macintalk", "macintalk"))
+    cmd = [prog, "-v", vid, "-o", out, text]
+    if os.environ.get("MACINTALK_VOICES"):
+        cmd[1:1] = ["-d", os.environ["MACINTALK_VOICES"]]
+    subprocess.run(cmd, check=True)
+
+
 ENGINES = {
     "sapi4": (sapi4, SAPI4, lambda v: (SAPI4[v][3], SAPI4[v][4]),
               "Microsoft Speech API 4 runtime and voices, spoken by https://www.tetyys.com/SAPI4/"),
@@ -205,6 +243,11 @@ ENGINES = {
                                  "Apple PlainTalk (MacinTalk Pro) voice" if MAC[v] == "PlainTalk"
                                  else "Apple MacInTalk 3 voice"),
             "Apple MacInTalk / PlainTalk, spoken by macOS's say"),
+    "macintalk": (macintalk, MACINTALK,
+                  lambda v: ("MacInTalk %s" % MACINTALK[v][0],
+                             "MacInTalk 3 voice (%s)" % MACINTALK[v][1]),
+                  "synth/macintalk (this repository, clean-room) reading Apple's "
+                  "MacInTalk 3 voice data (Mac OS 8.1), fetched by tools/fetch-macintalk.py"),
 }
 
 
@@ -245,11 +288,18 @@ def build_live(out_dir, engine, vid):
     if engine == "dectalk":
         how = 'command={program:dectalk} -fo {out} -a "[:%s] {text}"' % DECTALK[vid][0]
         by = "DECtalk's say, run here (tts_program_dectalk)"
+    elif engine == "macintalk":
+        how = 'command={program:macintalk} -v %s -o {out} "{text}"' % vid
+        by = "synth/macintalk, run here (tts_program_macintalk)"
     else:
         speed, pitch, mouth, throat = SAM[vid][:4]
         how = ("command={program:sam} -wav {out} -speed %d -pitch %d -mouth %d -throat %d \"{text}\""
                % (speed, pitch, mouth, throat))
         by = "SAM, run here (tts_program_sam)"
+    owners = "The synthesiser belongs to its owners"
+    if engine == "macintalk":
+        owners = ("The synthesiser is ours; the voice data it reads is Apple's and is\n"
+                  "; not in this repository (tools/fetch-macintalk.py downloads it)")
     text = "At the third stroke, it will be {hour} {minute} {seconds}."
     d = os.path.join(out_dir, "live-%s-%s" % (engine, vid.lower().replace(" ", "-")))
     os.makedirs(d, exist_ok=True)
@@ -257,11 +307,11 @@ def build_live(out_dir, engine, vid):
         f.write("; Live voice for app_speakingclock (docs/voice-format.md), made by\n"
                 "; tools/synth_voices.py --live %s:%s.  Each sentence is spoken when\n"
                 "; it is needed, by %s.\n"
-                "; The synthesiser belongs to its owners; see NOTICE.md.\n\n"
+                "; %s; see NOTICE.md.\n\n"
                 "[voice]\nname=%s, live\ndescription=%s, spoken live\n"
                 "mode=tts\nsequence=speech+pips\nperiod=10\n\n[tts]\n%s\ntext=%s\n"
                 "\n[source]\nengine=%s\nvoice=%s\nsynthesiser=%s\n"
-                % (engine, vid, by, name, desc, how, text, engine, vid, ENGINES[engine][3]))
+                % (engine, vid, by, owners, name, desc, how, text, engine, vid, ENGINES[engine][3]))
     assert vid in table
     print(d)
 
@@ -270,8 +320,8 @@ def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--live":
         for spec in sys.argv[3:]:
             engine, _, vid = spec.partition(":")
-            if engine not in ("dectalk", "sam") or vid not in ENGINES[engine][1]:
-                sys.exit("--live takes dectalk and sam voices (see --list)")
+            if engine not in ("dectalk", "sam", "macintalk") or vid not in ENGINES[engine][1]:
+                sys.exit("--live takes dectalk, sam and macintalk voices (see --list)")
             build_live(sys.argv[2], engine, vid)
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from voice_index import write_index

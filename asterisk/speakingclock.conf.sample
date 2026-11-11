@@ -23,10 +23,12 @@
 ; Hang up after this many seconds (0: never).  The d() option overrides it.
 ;maxduration=180
 
-; The live DECtalk and SAM voices run the synthesiser on this machine, with
-; no server.  Default: dectalk and sam, found on the PATH.
+; The live DECtalk, SAM and MacInTalk voices run the synthesiser on this
+; machine, with no server.  Default: dectalk, sam and macintalk, found on
+; the PATH.  macintalk is synth/macintalk in this repository.
 ;tts_program_dectalk=/opt/dectalk/say
 ;tts_program_sam=/usr/local/bin/sam
+;tts_program_macintalk=/usr/local/bin/macintalk
 
 ; Seconds a synthesiser program may take before it is stopped.
 ;tts_timeout=15

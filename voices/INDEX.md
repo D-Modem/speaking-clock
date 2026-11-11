@@ -50,6 +50,25 @@ Written by tools/voice_index.py. Every recording belongs to its original owner (
 | `live-dectalk-rita` | DECtalk Rough Rita, live | tts | dectalk synthesiser |
 | `live-dectalk-ursula` | DECtalk Uppity Ursula, live | tts | dectalk synthesiser |
 | `live-dectalk-wendy` | DECtalk Whispering Wendy, live | tts | dectalk synthesiser |
+| `live-macintalk-albert` | MacInTalk Albert, live | tts | macintalk synthesiser |
+| `live-macintalk-bad-news` | MacInTalk Bad News, live | tts | macintalk synthesiser |
+| `live-macintalk-bahh` | MacInTalk Bahh, live | tts | macintalk synthesiser |
+| `live-macintalk-bells` | MacInTalk Bells, live | tts | macintalk synthesiser |
+| `live-macintalk-boing` | MacInTalk Boing, live | tts | macintalk synthesiser |
+| `live-macintalk-bubbles` | MacInTalk Bubbles, live | tts | macintalk synthesiser |
+| `live-macintalk-cellos` | MacInTalk Cellos, live | tts | macintalk synthesiser |
+| `live-macintalk-deranged` | MacInTalk Deranged, live | tts | macintalk synthesiser |
+| `live-macintalk-fred` | MacInTalk Fred, live | tts | macintalk synthesiser |
+| `live-macintalk-good-news` | MacInTalk Good News, live | tts | macintalk synthesiser |
+| `live-macintalk-hysterical` | MacInTalk Hysterical, live | tts | macintalk synthesiser |
+| `live-macintalk-junior` | MacInTalk Junior, live | tts | macintalk synthesiser |
+| `live-macintalk-kathy` | MacInTalk Kathy, live | tts | macintalk synthesiser |
+| `live-macintalk-pipe-organ` | MacInTalk Pipe Organ, live | tts | macintalk synthesiser |
+| `live-macintalk-princess` | MacInTalk Princess, live | tts | macintalk synthesiser |
+| `live-macintalk-ralph` | MacInTalk Ralph, live | tts | macintalk synthesiser |
+| `live-macintalk-trinoids` | MacInTalk Trinoids, live | tts | macintalk synthesiser |
+| `live-macintalk-whisper` | MacInTalk Whisper, live | tts | macintalk synthesiser |
+| `live-macintalk-zarvox` | MacInTalk Zarvox, live | tts | macintalk synthesiser |
 | `live-sam-elf` | SAM Elf, live | tts | sam synthesiser |
 | `live-sam-extra-terrestrial` | SAM Extra-Terrestrial, live | tts | sam synthesiser |
 | `live-sam-little-old-lady` | SAM Little Old Lady, live | tts | sam synthesiser |
