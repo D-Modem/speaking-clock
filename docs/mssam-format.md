@@ -3,7 +3,8 @@
 What synth/mssam reads, as we decoded it from the data alone. The voices
 come in Microsoft's Speech API 4 TTS package `msttsl.exe` (SHA-1
 d988cbb3e99bc9dd850defda939c06b81d9d4544), a cabinet holding `sam.vce`,
-`male.vce` (Mike) and `female.vce` (Mary). Each `.vce` is an OLE compound
+`male.vce` (Mike) and `female.vce` (Mary), and `male8.vce` and `female8.vce`, Mike and Mary for
+telephone (`mike-tel`, `mary-tel`). Each `.vce` is an OLE compound
 file with these streams: `Inventory`, `TreeImage`, `PhoneFile`, `Senone`,
 `Cdb`, `VcHeader` (and `AltUnits` in Sam's). `tools/fetch-mssam.py`
 writes `Inventory` as `<voice>.inv`, `Cdb` as `<voice>.tones`, and
@@ -22,6 +23,12 @@ frame (in cycles per sample). The excitation codebooks have 128 entries;
 family A's 11 dims and family B's 13 dims each add up to 510, the points
 of one pitch period scaled to a fixed length.
 
+The telephone voices are the same at 8000 Hz with order 12: 4 line-spectrum
+codebooks of 3 values, and 10 excitation codebooks in each family (dims 12,
+12, 16, 16, 16, 18, 24, 38, 46, 56, adding up to 254). Their unvoiced frame bytes
+(147-238) do not fit as lengths at 8 kHz; mssam plays those frames as 5 ms,
+which matches the units' recorded lengths (Senone) best.
+
 A unit:
 
     u32 n                          frames
@@ -30,7 +37,7 @@ A unit:
                                    period in samples; unvoiced: 0x80
                                    bytes then a byte > 0x80, the length
                                    is 128*(number of 0x80 - 1) + that byte
-    n x 6 bytes                    line-spectrum codebook indices
+    n x 6 bytes (4 for telephone)  line-spectrum codebook indices
     n float32                      gains (the RMS of the frame's excitation)
     for each voiced frame          the first frame of a voiced run: 11
                                    family A indices, the whole period;

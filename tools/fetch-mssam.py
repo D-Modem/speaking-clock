@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """SPDX-License-Identifier: GPL-2.0-or-later
 
-Fetch the Microsoft Sam, Mike and Mary voice data for synth/mssam at build
-time.
+Fetch the Microsoft Sam, Mike and Mary voice data (and Mike and Mary for
+telephone) for synth/mssam at build time.
 
 Microsoft's files are not in this repository.  This script downloads the
 Microsoft Speech API 4 text-to-speech package (msttsl.exe) from the
@@ -18,8 +18,9 @@ synth/mssam uses as plain files:
                         clock does not usually say can be spoken too
                         (optional: synth/mssam knows the clock's words)
 
-The voices are sam, mike and mary (the files sam.vce, male.vce and
-female.vce).  The layouts are described in docs/mssam-format.md.
+The voices are sam, mike, mary, mike-tel and mary-tel (the files sam.vce,
+male.vce, female.vce, and the 8 kHz telephone voices male8.vce and
+female8.vce).  The layouts are described in docs/mssam-format.md.
 
 Only data is read.  Nothing from the package is run, and Microsoft's
 programs in it (msttssyn.dll and the rest) are not kept.
@@ -41,7 +42,8 @@ import urllib.request
 URL = "https://archive.org/download/msttsl/msttsl.exe"
 SHA1 = "d988cbb3e99bc9dd850defda939c06b81d9d4544"
 CMUDICT = "https://raw.githubusercontent.com/cmusphinx/cmudict/master/cmudict.dict"
-VOICES = {"sam": "sam.vce", "mike": "male.vce", "mary": "female.vce"}
+VOICES = {"sam": "sam.vce", "mike": "male.vce", "mary": "female.vce",
+          "mike-tel": "male8.vce", "mary-tel": "female8.vce"}
 POSITIONS = 4          # word positions: begins, ends, single, inside
 
 

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
  *
- * mssam: our own synthesiser for the Microsoft Sam, Mike and Mary voices.
+ * mssam: our own synthesiser for the Microsoft Sam, Mike and Mary voices
+ * (and Mike and Mary for telephone).
  *
  * It reads the voice data (fetched by tools/fetch-mssam.py) and speaks with
  * it: each sound of the text is given a recorded unit of the voice, picked
@@ -8,7 +9,7 @@
  * and timing.  No Microsoft code is used or run.  docs/mssam-format.md
  * describes the data.
  *
- *   mssam [-d DIR] [-v sam|mike|mary] [-r RATE] [-p PITCH] [-o OUT.wav] TEXT...
+ *   mssam [-d DIR] [-v sam|mike|mary|mike-tel|mary-tel] [-r RATE] [-p PITCH] [-o OUT.wav] TEXT...
  *
  * RATE and PITCH are multipliers (1 is the voice's own).  Without -o the
  * WAV goes to standard output.
@@ -27,7 +28,8 @@
 #define VOICEDIR "/usr/local/share/mssam"
 #endif
 
-#define ORDER 20		/* LPC order of all three voices */
+#define MAXORDER 24		/* LPC order: 20, or 12 for the telephone voices */
+#define ORDER V.order
 #define MAXCB 16
 #define MAXPH 64
 
@@ -93,7 +95,7 @@ struct node { int32_t yes, no; uint32_t q0, nq; };
 struct phone { char name[9]; uint32_t first, nnodes, node0; };
 
 static struct {
-	int rate, period;		/* sample rate, points in a stored pitch period */
+	int rate, order, period;	/* sample rate, LPC order, points in a stored pitch period */
 	int nlsf, na, nb;
 	struct table lsf[MAXCB], cba[MAXCB], cbb[MAXCB];
 	uint32_t nunits;
@@ -126,8 +128,9 @@ static void load_inventory(const char *path)
 	int i, s;
 
 	V.rate = le32(d);
-	if (le32(d + 4) != ORDER)
-		die("%s: not a voice with 20 LPC coefficients", path);
+	V.order = le32(d + 4);
+	if (V.order < 2 || V.order > MAXORDER || V.order % 2)
+		die("%s: not a voice this program knows", path);
 	V.nlsf = le32(d + 8);
 	V.na = le32(d + 12);
 	V.nb = le32(d + 16);
@@ -247,7 +250,7 @@ static int pick_unit(int p, int pos, int l, int r)
 
 struct frame {
 	int voiced, len, orig;
-	float gain, lsf[ORDER];
+	float gain, lsf[MAXORDER];
 	float *period;			/* V.period points, for voiced frames */
 };
 
@@ -286,21 +289,25 @@ static int decode_unit(uint32_t k, struct frame **out)
 			for (c = 0; *u == 0x80; u++)
 				c++;
 			f[i].len = 128 * (c ? c - 1 : 0) + *u++;
+			/* in the 8 kHz voices this byte does not fit as a length;
+			 * 5 ms frames match the units' recorded lengths best */
+			if (V.rate < 16000)
+				f[i].len = V.rate / 200;
 		}
 	}
-	/* then six line spectrum codebook indices per frame */
-	if (u + 10 * n > end)
+	/* then a line spectrum codebook index per codebook per frame */
+	if (u + (V.nlsf + 4) * n > end)
 		goto bad;
 	for (i = 0; i < n; i++) {
 		int o = 0;
 		for (j = 0; j < (uint32_t)V.nlsf; j++) {
 			const struct table *t = &V.lsf[j];
-			int idx = u[6 * i + j] % t->cnt, d;
+			int idx = u[V.nlsf * i + j] % t->cnt, d;
 			for (d = 0; d < t->dim; d++)
 				f[i].lsf[o++] = lef(t->v + 4 * (idx * t->dim + d));
 		}
 	}
-	u += 6 * n;
+	u += V.nlsf * n;
 	for (i = 0; i < n; i++)
 		f[i].gain = lef(u + 4 * i);
 	u += 4 * n;
@@ -609,7 +616,7 @@ static void parse_text(const char *text)
 
 static void lsf_to_lpc(const float *lsf, double *a)
 {
-	double p[ORDER + 2] = { 1 }, q[ORDER + 2] = { 1 };
+	double p[MAXORDER + 2] = { 1 }, q[MAXORDER + 2] = { 1 };
 	int np = 1, nq = 1, i, j;
 
 	for (i = 0; i < ORDER; i++) {
@@ -657,8 +664,10 @@ static void emit(double v)
 
 static void render(double rate, double pitch)
 {
-	static double mem[ORDER];
-	double a[ORDER + 1], *e = NULL;
+	static double mem[MAXORDER], prev_y;
+	static float last[MAXORDER];
+	static int have_last;
+	double a[MAXORDER + 1], *e = NULL;
 	int i, j, k, ne = 0;
 
 	for (i = 0; i < nsnd; i++) {
@@ -670,6 +679,8 @@ static void render(double rate, double pitch)
 			for (k = 0; k < snd[i].pause * V.rate / 1000; k++)
 				emit(0);
 			memset(mem, 0, sizeof(mem));
+			prev_y = 0;
+			have_last = 0;
 			continue;
 		}
 		/* the sounds either side; a pause counts as silence */
@@ -739,15 +750,32 @@ static void render(double rate, double pitch)
 				}
 				g = s->gain / (sqrt(sum / len) + 1e-9);
 			}
-			lsf_to_lpc(s->lsf, a);
+			/* the spectrum glides from the last frame's to this one's,
+			 * in steps of 32 samples, so frames do not click */
+			if (!have_last)
+				memcpy(last, s->lsf, sizeof(last));
 			for (k = 0; k < len; k++) {
 				double y = e[k] * g;
+				if (k % 32 == 0) {
+					float l[MAXORDER];
+					double w = (k + 16.0) / len;
+					if (w > 1)
+						w = 1;
+					for (j = 0; j < ORDER; j++)
+						l[j] = (1 - w) * last[j] + w * s->lsf[j];
+					lsf_to_lpc(l, a);
+				}
 				for (j = 0; j < ORDER; j++)
 					y -= a[j + 1] * mem[j];
 				memmove(mem + 1, mem, (ORDER - 1) * sizeof(double));
 				mem[0] = y;
-				emit(y);
+				/* the voices' spectra lack the treble of the recordings
+				 * (about 10 dB above 3 kHz); this lift matches it */
+				emit(y - 0.65 * prev_y);
+				prev_y = y;
 			}
+			memcpy(last, s->lsf, sizeof(last));
+			have_last = 1;
 			t += len;
 		}
 		free(src);
@@ -796,7 +824,7 @@ static void write_wav(FILE *f)
 
 static void usage(void)
 {
-	fprintf(stderr, "usage: mssam [-d DIR] [-v sam|mike|mary] [-r RATE] [-p PITCH] [-o OUT.wav] TEXT...\n"
+	fprintf(stderr, "usage: mssam [-d DIR] [-v VOICE] [-r RATE] [-p PITCH] [-o OUT.wav] TEXT...\n"
 		"  DIR holds the voice data from tools/fetch-mssam.py (default %s)\n", VOICEDIR);
 	exit(2);
 }
@@ -833,8 +861,9 @@ int main(int argc, char **argv)
 		strncat(text, argv[i], sizeof(text) - strlen(text) - 2);
 		strcat(text, " ");
 	}
-	if (strcmp(voice, "sam") && strcmp(voice, "mike") && strcmp(voice, "mary"))
-		die("unknown voice %s (sam, mike or mary)", voice);
+	if (strcmp(voice, "sam") && strcmp(voice, "mike") && strcmp(voice, "mary") &&
+	    strcmp(voice, "mike-tel") && strcmp(voice, "mary-tel"))
+		die("unknown voice %s (sam, mike, mary, mike-tel or mary-tel)", voice);
 	if (strcmp(voice, "sam"))
 		rate /= 0.82, pitch /= 0.93;
 

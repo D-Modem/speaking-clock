@@ -14,12 +14,13 @@ sudo make install    # /usr/local/bin/mssam and /usr/local/share/mssam
 ```
 
 ```
-mssam [-d DIR] [-v sam|mike|mary] [-r RATE] [-p PITCH] [-o OUT.wav] TEXT...
+mssam [-d DIR] [-v sam|mike|mary|mike-tel|mary-tel] [-r RATE] [-p PITCH] [-o OUT.wav] TEXT...
 ```
 
-`-d` is the folder with the voice data (default `/usr/local/share/mssam`,
+`mike-tel` and `mary-tel` are Microsoft's 8 kHz voices made for phone
+lines. `-d` is the folder with the voice data (default `/usr/local/share/mssam`,
 or `$MSSAM_DIR`). `-r` and `-p` multiply the speed and pitch. Without `-o`
-the WAV (22050 Hz, 16-bit mono) goes to standard output.
+the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to standard output.
 
 ## How it speaks
 

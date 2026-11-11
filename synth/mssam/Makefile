@@ -24,7 +24,7 @@ install: mssam voices
 	if [ -f $(SOURCES)/cmudict.dict ]; then install -m 644 $(SOURCES)/cmudict.dict $(DESTDIR)$(VOICEDIR)/; fi
 
 test: mssam voices
-	@for v in sam mike mary; do \
+	@for v in sam mike mary mike-tel mary-tel; do \
 		./mssam -d $(SOURCES) -v $$v -o /tmp/mssam-$$v.wav \
 			"At the third stroke, it will be ten oh five and twenty seconds." && \
 		echo "/tmp/mssam-$$v.wav"; \

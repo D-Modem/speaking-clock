@@ -227,6 +227,8 @@ MSSAM = {
     "sam": ("Microsoft Sam", "Microsoft Speech API 4 voice Sam"),
     "mike": ("Microsoft Mike", "Microsoft Speech API 4 voice Mike"),
     "mary": ("Microsoft Mary", "Microsoft Speech API 4 voice Mary"),
+    "mike-tel": ("Microsoft Mike for Telephone", "Microsoft Speech API 4 voice Mike, made for phone lines"),
+    "mary-tel": ("Microsoft Mary for Telephone", "Microsoft Speech API 4 voice Mary, made for phone lines"),
 }
 
 

@@ -70,7 +70,9 @@ Written by tools/voice_index.py. Every recording belongs to its original owner (
 | `live-macintalk-whisper` | MacInTalk Whisper, live | tts | macintalk synthesiser |
 | `live-macintalk-zarvox` | MacInTalk Zarvox, live | tts | macintalk synthesiser |
 | `live-mssam-mary` | Microsoft Mary, live | tts | mssam synthesiser |
+| `live-mssam-mary-tel` | Microsoft Mary for Telephone, live | tts | mssam synthesiser |
 | `live-mssam-mike` | Microsoft Mike, live | tts | mssam synthesiser |
+| `live-mssam-mike-tel` | Microsoft Mike for Telephone, live | tts | mssam synthesiser |
 | `live-mssam-sam` | Microsoft Sam, live | tts | mssam synthesiser |
 | `live-plaintalk-agnes` | PlainTalk Agnes, live | tts | plaintalk synthesiser |
 | `live-plaintalk-bruce` | PlainTalk Bruce, live | tts | plaintalk synthesiser |
