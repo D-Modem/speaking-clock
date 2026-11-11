@@ -435,7 +435,7 @@ static const char *pronounce(const char *w)
 static int content_word(const char *w)
 {
 	static const char *fn[] = { "a", "an", "and", "at", "be", "by", "for", "in", "is", "it",
-		"it's", "its", "of", "on", "or", "the", "to", "will", NULL };
+		"it's", "its", "of", "on", "or", "that", "the", "this", "to", "was", "will", NULL };
 	int i;
 	for (i = 0; fn[i]; i++)
 		if (!strcmp(w, fn[i]))
@@ -478,7 +478,7 @@ static void add_word(const char *w, const char *phones, int content)
 		if (p < 0)
 			continue;
 		snd[nsnd++] = (struct sound){ .ph = p,
-			.vowel = stress < 0 ? 0 : 1 + (stress && content ? T_ACCENT : T_PLAIN) };
+			.vowel = stress < 0 ? 0 : 1 + (stress == 1 && content ? T_ACCENT : T_PLAIN) };
 	}
 	(void)w;
 	for (int i = first; i < nsnd; i++)
@@ -545,15 +545,31 @@ static void say_number(long n, char *out, size_t sz)
 /* The pitch of a phrase, in Sam's Hz (other voices are scaled to theirs):
  * it starts near TOP and sinks to BOTTOM, the first accented word stands
  * out by ACCENT1 and later ones by ACCENT2, and the last vowel falls to
- * END.  Measured from Sam's own recordings of the clock's phrases. */
-static const double TOP = 100, BOTTOM = 82, ACCENT1 = 22, ACCENT2 = 10, END = 73;
+ * END at the end of a sentence, or only to MORE before a comma, where more
+ * is to come.  Measured from Sam's own recordings. */
+static const double TOP = 102, BOTTOM = 94, ACCENT1 = 32, ACCENT2 = 22, END = 73, MORE = 98;
 
-static void end_phrase(int from)
+static void end_phrase(int from, int last)
 {
 	int i, nv = 0, j = 0, accents = 0;
 
 	for (i = from; i < nsnd; i++)
 		nv += snd[i].vowel != 0;
+	/* Sam does not accent a sentence's last word ("seconds", "Sam") */
+	if (last) {
+		int w, k;
+		for (i = nsnd - 1; i >= from && snd[i].vowel != 1 + T_ACCENT; i--)
+			;
+		for (w = i; w > from && snd[w].pos != POS_BEGIN && snd[w].pos != POS_SINGLE; w--)
+			;
+		/* only when another word carries the phrase's accent */
+		for (k = from; k < w && snd[k].vowel != 1 + T_ACCENT; k++)
+			;
+		if (i >= from && k < w)
+			for (; i >= w; i--)
+				if (snd[i].vowel == 1 + T_ACCENT)
+					snd[i].vowel = 1 + T_PLAIN;
+	}
 	for (i = from; i < nsnd; i++) {
 		double x0, x1, b0, b1, lift = 0;
 		if (!snd[i].vowel)
@@ -567,8 +583,10 @@ static void end_phrase(int from)
 		snd[i].f0[0] = b0 + lift;
 		snd[i].f0[1] = b1 + lift * 0.6;
 		if (++j == nv) {
-			snd[i].f0[0] = b0 + lift * 0.5;
-			snd[i].f0[1] = END;
+			/* a sentence's last word falls from the plain line; a
+			 * word before a comma keeps its accent and falls less */
+			snd[i].f0[0] = last ? b0 : b0 + lift;
+			snd[i].f0[1] = last ? END : MORE;
 		}
 	}
 }
@@ -619,17 +637,17 @@ static void parse_text(const char *text)
 			continue;
 		}
 		if (strchr(",;:", *s) && !(*s == ':' && isdigit((unsigned char)s[1]))) {
-			end_phrase(phrase);
+			end_phrase(phrase, 0);
 			add_pause(180);
 			phrase = nsnd;
 		} else if (strchr(".!?", *s)) {
-			end_phrase(phrase);
+			end_phrase(phrase, 1);
 			add_pause(350);
 			phrase = nsnd;
 		}
 		s++;
 	}
-	end_phrase(phrase);
+	end_phrase(phrase, 1);
 	add_pause(120);
 }
 
@@ -714,13 +732,73 @@ static void stretch(const float *p, double *e, int n)
 
 /* The loudness of a unit's first frames leans toward the end of the unit
  * before, so that joins do not jump. */
-static const double JOIN = 0.6;
+static const double JOIN = 0.6, LIFTC = 0.65;
 /* Each pitch pulse is blended with the one before: the stored pulses vary
  * more from one to the next than Sam's own speech does, which sounds rough. */
 static const double SMOOTH = 0.7;
+/* Sam's hiss and frication come out quieter than in his recordings. */
+static double FRIC = 1;
 static float sper[1024];
 static int have_per;
 static double last_gain;
+
+/* A formant postfilter, as speech codecs use: A(z/PF_NUM) / A(z/PF_DEN)
+ * deepens the valleys between the formants, where the coded excitation
+ * leaves a haze that sounds muffled and rough.  Mike and Mary are clear
+ * without it. */
+static double PF_NUM, PF_DEN;	/* Sam only: 0.5 and 0.75 */
+static double pf_x[MAXORDER], pf_y[MAXORDER], prev_y, pf_tilt, pf_last;
+static int pf_n;
+
+/* The postfilter also tilts the spectrum down; as in G.729, a first-order
+ * filter set from its impulse response takes the tilt back out. */
+static void pf_retilt(const double *a)
+{
+	double h[48] = { 1 }, r0 = 0, r1 = 0;
+	int n, j;
+
+	for (n = 0; n < 48; n++) {
+		double gn = 1, gd = 1, v = n == 0;
+		for (j = 0; j < ORDER && j < n; j++) {
+			gn *= PF_NUM;
+			gd *= PF_DEN;
+			v += a[j + 1] * gn * (n - j - 1 == 0) - a[j + 1] * gd * h[n - j - 1];
+		}
+		h[n] = v;
+	}
+	for (n = 0; n < 48; n++) {
+		r0 += h[n] * h[n];
+		if (n + 1 < 48)
+			r1 += h[n] * h[n + 1];
+	}
+	pf_tilt = r1 / (r0 + 1e-12);
+}
+
+static void post(const double *a, double y)
+{
+	double v = y, gn = 1, gd = 1, t;
+	int j;
+
+	if (pf_n++ % 32 == 0)
+		pf_retilt(a);
+
+	for (j = 0; j < ORDER; j++) {
+		gn *= PF_NUM;
+		gd *= PF_DEN;
+		v += a[j + 1] * gn * pf_x[j] - a[j + 1] * gd * pf_y[j];
+	}
+	memmove(pf_x + 1, pf_x, (ORDER - 1) * sizeof(double));
+	pf_x[0] = y;
+	memmove(pf_y + 1, pf_y, (ORDER - 1) * sizeof(double));
+	pf_y[0] = v;
+	t = v - pf_tilt * pf_last;
+	pf_last = v;
+	v = t;
+	/* the voices' spectra lack the treble of the recordings
+	 * (about 10 dB above 3 kHz); this lift matches it */
+	emit(v - LIFTC * prev_y);
+	prev_y = v;
+}
 
 static double gain_at(double g, int k)
 {
@@ -734,10 +812,10 @@ static void render(double rate, double pitch)
 {
 	/* the voice's own pitch against Sam's (plain syllables: 112 Hz) */
 	double vscale = V.tone[T_PLAIN][0] / 112.0;
-	static double mem[MAXORDER], prev_y;
+	static double mem[MAXORDER];
 	static float last[MAXORDER];
 	static int have_last;
-	double a[MAXORDER + 1], *e = NULL;
+	double a[MAXORDER + 1] = { 1 }, *e = NULL;
 	int i, j, k, ne = 0;
 
 	for (i = 0; i < nsnd; i++) {
@@ -746,9 +824,21 @@ static void render(double rate, double pitch)
 		int n, l, r, unit, prev, next;
 
 		if (snd[i].pause) {
-			for (k = 0; k < snd[i].pause * V.rate / 1000; k++)
-				emit(0);
+			/* the filter rings out into the pause instead of being
+			 * cut off, which clicks */
+			for (k = 0; k < snd[i].pause * V.rate / 1000; k++) {
+				double y = 0;
+				for (j = 0; j < ORDER; j++)
+					y -= a[j + 1] * mem[j];
+				if (k > 200)
+					y *= k < 1200 ? 1 - (k - 200) / 1000.0 : 0;
+				memmove(mem + 1, mem, (ORDER - 1) * sizeof(double));
+				mem[0] = y;
+				post(a, y);
+			}
 			memset(mem, 0, sizeof(mem));
+			memset(pf_x, 0, sizeof(pf_x));
+			memset(pf_y, 0, sizeof(pf_y));
 			prev_y = 0;
 			have_last = 0;
 			last_gain = 0;
@@ -823,6 +913,13 @@ static void render(double rate, double pitch)
 					sum += e[k] * e[k];
 				for (; k < len; k++)
 					e[k] = 0;
+				/* a shortened period fades out over its last eighth
+				 * instead of stopping dead, which crackles */
+				if (len < L0) {
+					int fade = len / 8 + 1;
+					for (k = len - fade; k < len; k++)
+						e[k] *= (double)(len - k) / fade;
+				}
 				g = gain_at(s->gain, sf) / (sqrt(sum / L0) + 1e-9);
 			} else {
 				have_per = 0;
@@ -830,7 +927,7 @@ static void render(double rate, double pitch)
 					e[k] = noise();
 					sum += e[k] * e[k];
 				}
-				g = gain_at(s->gain, sf) / (sqrt(sum / len) + 1e-9);
+				g = FRIC * gain_at(s->gain, sf) / (sqrt(sum / len) + 1e-9);
 			}
 			/* the spectrum glides from the last frame's to this one's,
 			 * in steps of 32 samples, so frames do not click */
@@ -851,10 +948,7 @@ static void render(double rate, double pitch)
 					y -= a[j + 1] * mem[j];
 				memmove(mem + 1, mem, (ORDER - 1) * sizeof(double));
 				mem[0] = y;
-				/* the voices' spectra lack the treble of the recordings
-				 * (about 10 dB above 3 kHz); this lift matches it */
-				emit(y - 0.65 * prev_y);
-				prev_y = y;
+				post(a, y);
 			}
 			memcpy(last, s->lsf, sizeof(last));
 			have_last = 1;
@@ -882,12 +976,13 @@ static void put16(FILE *f, uint16_t v)
 }
 
 /* Narrow the gap between loud vowels and quiet consonants: the level,
- * followed over about 10 ms, is raised to the power 1 - COMPRESS. */
+ * followed over about 40 ms (long enough not to ripple with each pitch
+ * period), is raised to the power 1 - COMPRESS. */
 static const double COMPRESS = 0.2;
 
 static void compress(void)
 {
-	size_t i, w = V.rate / 100;
+	size_t i, w = V.rate / 25;
 	double env = 0, top = 1e-9, *lev;
 
 	if (COMPRESS <= 0 || !nout)
@@ -914,12 +1009,13 @@ static void compress(void)
 	free(lev);
 }
 
-/* Sam's units come out darker than his own voice above 2.5 kHz (and a
- * little thin at the very bottom): this correction, measured against his
- * recordings of the clock's phrases, puts it back.  dB at each frequency;
- * Mike and Mary need none. */
+/* Sam's vowels come out with too little of the 2.5-4 kHz range that makes
+ * words clear (and a little thin at the very bottom): this correction,
+ * measured against his recordings of the clock's phrases, puts it back
+ * without adding hiss above it.  dB at each frequency; Mike and Mary need
+ * none. */
 static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 4.3, 0.4, -0.4, 0, 0.2, 1.1, 4.3, 3.6, 2.9, 2.0, 4.5, 6.1, 5.9, 3.9 };
+static const double eq_sam[] = { 4.3, 0.4, -0.6, -0.5, 0.5, 3.0, 6.5, 6.0, 3.5, -1.0, 0, 1.5, 1.5, 0 };
 static const double *eq;
 
 static void equalise(void)
@@ -1000,11 +1096,15 @@ static void usage(void)
 	exit(2);
 }
 
+/* Sam's pace against his units' own: a little quicker than they were
+ * recorded.  Mike and Mary keep theirs. */
+#define SAM_PACE 0.9
+
 int main(int argc, char **argv)
 {
 	const char *dir = getenv("MSSAM_DIR") ? getenv("MSSAM_DIR") : VOICEDIR;
 	const char *voice = "sam", *outp = NULL;
-	double rate = 0.82, pitch = 1;	/* Sam's pace */
+	double rate = SAM_PACE, pitch = 1;
 	char path[4096], text[8192] = "";
 	int i;
 	FILE *f;
@@ -1036,10 +1136,14 @@ int main(int argc, char **argv)
 	    strcmp(voice, "mike-tel") && strcmp(voice, "mary-tel"))
 		die("unknown voice %s (sam, mike, mary, mike-tel or mary-tel)", voice);
 	if (strcmp(voice, "sam"))
-		rate /= 0.82;
+		rate /= SAM_PACE;
 
-	if (!strcmp(voice, "sam"))
+	if (!strcmp(voice, "sam")) {
 		eq = eq_sam;
+		PF_NUM = 0.5;
+		PF_DEN = 0.75;
+		FRIC = 1.35;
+	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
 	snprintf(path, sizeof(path), "%s/%s.tree", dir, voice);
