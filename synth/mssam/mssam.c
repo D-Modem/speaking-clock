@@ -351,6 +351,7 @@ bad:
 
 struct sound {
 	int ph, pos, vowel;	/* vowel: 0, or 1 + the tone */
+	float f0[2];		/* a vowel's pitch where it starts and ends, Hz */
 	int pause;		/* > 0: a pause of this many ms instead of a sound */
 };
 
@@ -541,15 +542,35 @@ static void say_number(long n, char *out, size_t sz)
 	}
 }
 
-/* Mark the end of a phrase: its last vowel falls. */
+/* The pitch of a phrase, in Sam's Hz (other voices are scaled to theirs):
+ * it starts near TOP and sinks to BOTTOM, the first accented word stands
+ * out by ACCENT1 and later ones by ACCENT2, and the last vowel falls to
+ * END.  Measured from Sam's own recordings of the clock's phrases. */
+static const double TOP = 100, BOTTOM = 82, ACCENT1 = 22, ACCENT2 = 10, END = 73;
+
 static void end_phrase(int from)
 {
-	int i;
-	for (i = nsnd - 1; i >= from; i--)
-		if (snd[i].vowel) {
-			snd[i].vowel = 1 + (snd[i].vowel == 1 + T_ACCENT ? T_LASTACCENT : T_LAST);
-			break;
+	int i, nv = 0, j = 0, accents = 0;
+
+	for (i = from; i < nsnd; i++)
+		nv += snd[i].vowel != 0;
+	for (i = from; i < nsnd; i++) {
+		double x0, x1, b0, b1, lift = 0;
+		if (!snd[i].vowel)
+			continue;
+		x0 = nv > 1 ? (double)j / nv : 0;
+		x1 = nv > 1 ? (j + 1.0) / nv : 1;
+		b0 = TOP - (TOP - BOTTOM) * x0;
+		b1 = TOP - (TOP - BOTTOM) * x1;
+		if (snd[i].vowel == 1 + T_ACCENT)
+			lift = accents++ ? ACCENT2 : ACCENT1;
+		snd[i].f0[0] = b0 + lift;
+		snd[i].f0[1] = b1 + lift * 0.6;
+		if (++j == nv) {
+			snd[i].f0[0] = b0 + lift * 0.5;
+			snd[i].f0[1] = END;
 		}
+	}
 }
 
 static void parse_text(const char *text)
@@ -662,8 +683,52 @@ static void emit(double v)
 	out[nout++] = v;
 }
 
+/* One stored period (V.period points) at its real length n.  It is one
+ * period of a periodic signal, so it is resampled through its spectrum,
+ * keeping the harmonics that fit below the new Nyquist frequency. */
+
+static void stretch(const float *p, double *e, int n)
+{
+	static double re[1024], im[1024];
+	int N = V.period, h = n / 2 < N / 2 ? n / 2 : N / 2, k, j;
+
+	for (k = 0; k <= h; k++) {
+		double a = 0, b = 0;
+		for (j = 0; j < N; j++) {
+			double w = 2 * M_PI * k * j / N;
+			a += p[j] * cos(w);
+			b -= p[j] * sin(w);
+		}
+		re[k] = a;
+		im[k] = b;
+	}
+	for (j = 0; j < n; j++) {
+		double v = re[0];
+		for (k = 1; k <= h; k++) {
+			double w = 2 * M_PI * k * j / n, c = k == h && 2 * h == n ? 1 : 2;
+			v += c * (re[k] * cos(w) - im[k] * sin(w));
+		}
+		e[j] = v / N;
+	}
+}
+
+/* The loudness of a unit's first frames leans toward the end of the unit
+ * before, so that joins do not jump. */
+static const double JOIN = 0.6;
+static double last_gain;
+
+static double gain_at(double g, int k)
+{
+	double w = k == 0 ? JOIN : k == 1 ? JOIN / 2 : 0;
+	if (w <= 0 || last_gain <= 0 || g <= 0)
+		return g;
+	return exp((1 - w) * log(g) + w * log(last_gain));
+}
+
 static void render(double rate, double pitch)
 {
+	/* the voice's own pitch against Sam's (plain syllables: 112 Hz) */
+	double vscale = V.tone[T_PLAIN][0] / 112.0;
 	static double mem[MAXORDER], prev_y;
 	static float last[MAXORDER];
 	static int have_last;
@@ -681,6 +746,7 @@ static void render(double rate, double pitch)
 			memset(mem, 0, sizeof(mem));
 			prev_y = 0;
 			have_last = 0;
+			last_gain = 0;
 			continue;
 		}
 		/* the sounds either side; a pause counts as silence */
@@ -701,13 +767,15 @@ static void render(double rate, double pitch)
 		for (next = i + 1; next < nsnd && !snd[next].pause && !snd[next].vowel; next++)
 			;
 		if (snd[i].vowel) {
-			f0a = V.tone[snd[i].vowel - 1][0];
-			f0b = V.tone[snd[i].vowel - 1][1];
+			f0a = snd[i].f0[0];
+			f0b = snd[i].f0[1];
 		} else {
 			int pv = prev >= 0 && snd[prev].vowel, nv = next < nsnd && snd[next].vowel;
-			f0a = pv ? V.tone[snd[prev].vowel - 1][1] : nv ? V.tone[snd[next].vowel - 1][0] : 110;
-			f0b = nv ? V.tone[snd[next].vowel - 1][0] : f0a;
+			f0a = pv ? snd[prev].f0[1] : nv ? snd[next].f0[0] : TOP;
+			f0b = nv ? snd[next].f0[0] : f0a;
 		}
+		f0a *= vscale;
+		f0b *= vscale;
 		/* new timing: step through the unit's frames at the new rate */
 		src = xmalloc((n + 1) * sizeof(double));
 		for (k = 0; k < n; k++)
@@ -715,14 +783,19 @@ static void render(double rate, double pitch)
 		total = src[n] / rate;
 		for (t = 0; t < total;) {
 			struct frame *s;
-			int len, L0;
+			int len, L0, sf;
 			double g, sum = 0;
 
 			for (k = 0; k < n - 1 && src[k + 1] <= t * rate; k++)
 				;
 			s = &f[k];
+			sf = k;
 			L0 = s->len;
-			len = s->voiced ? (int)lrint(V.rate / ((f0a + (f0b - f0a) * t / total) * pitch)) : L0;
+			if (s->voiced) {
+				len = (int)lrint(V.rate / ((f0a + (f0b - f0a) * t / total) * pitch));
+			} else {
+				len = L0;
+			}
 			if (len < 20)
 				len = 20;
 			if (ne < (L0 > len ? L0 : len)) {
@@ -733,22 +806,18 @@ static void render(double rate, double pitch)
 				/* the stored period is scaled to V.period points:
 				 * stretch it back to its recorded length, then cut
 				 * or pad it to the new period */
-				for (k = 0; k < L0; k++) {
-					double x = L0 > 1 ? (double)k * (V.period - 1) / (L0 - 1) : 0;
-					int x0 = (int)x;
-					double fr = x - x0;
-					e[k] = s->period[x0] * (1 - fr) + (x0 + 1 < V.period ? s->period[x0 + 1] * fr : 0);
+				stretch(s->period, e, L0);
+				for (k = 0; k < L0; k++)
 					sum += e[k] * e[k];
-				}
 				for (; k < len; k++)
 					e[k] = 0;
-				g = s->gain / (sqrt(sum / L0) + 1e-9);
+				g = gain_at(s->gain, sf) / (sqrt(sum / L0) + 1e-9);
 			} else {
 				for (k = 0; k < len; k++) {
 					e[k] = noise();
 					sum += e[k] * e[k];
 				}
-				g = s->gain / (sqrt(sum / len) + 1e-9);
+				g = gain_at(s->gain, sf) / (sqrt(sum / len) + 1e-9);
 			}
 			/* the spectrum glides from the last frame's to this one's,
 			 * in steps of 32 samples, so frames do not click */
@@ -779,6 +848,7 @@ static void render(double rate, double pitch)
 			t += len;
 		}
 		free(src);
+		last_gain = f[n - 1].gain;
 		for (k = 0; k < n; k++)
 			free(f[k].period);
 		free(f);
@@ -833,7 +903,7 @@ int main(int argc, char **argv)
 {
 	const char *dir = getenv("MSSAM_DIR") ? getenv("MSSAM_DIR") : VOICEDIR;
 	const char *voice = "sam", *outp = NULL;
-	double rate = 0.82, pitch = 0.93;	/* Sam's pace and pitch */
+	double rate = 0.82, pitch = 1;	/* Sam's pace */
 	char path[4096], text[8192] = "";
 	int i;
 	FILE *f;
@@ -865,7 +935,7 @@ int main(int argc, char **argv)
 	    strcmp(voice, "mike-tel") && strcmp(voice, "mary-tel"))
 		die("unknown voice %s (sam, mike, mary, mike-tel or mary-tel)", voice);
 	if (strcmp(voice, "sam"))
-		rate /= 0.82, pitch /= 0.93;
+		rate /= 0.82;
 
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
