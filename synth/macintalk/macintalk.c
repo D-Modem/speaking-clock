@@ -713,6 +713,9 @@ static void add_seg(int p, int kind, double dur, int stress, int tok)
 	s->f0 = 0;
 }
 
+/* how much a phrase slows down and falls at its end (1: fully) */
+static double final_k = 1;
+
 static int is_vowelish(int p) { return p > 0 && (ph[p].flags & (V | SON | NAS)); }
 
 static void timing(const struct voice *v, double rate)
@@ -744,13 +747,13 @@ static void timing(const struct voice *v, double rate)
 			if (next && (ph[next].flags & (STOP | FRIC | AFFR)) && !(ph[next].flags & VOI))
 				d *= 0.85;
 			if (final)
-				d *= 1.35;
+				d *= 1 + 0.35 * final_k;
 		} else {
 			if (i > 0 && toks[i - 1].ph && !(ph[toks[i - 1].ph].flags & V) &&
 			    next && !(ph[next].flags & V))
 				d *= 0.8;
 			if (final)
-				d *= 1.15;
+				d *= 1 + 0.15 * final_k;
 		}
 		d *= scale;
 		if ((fl & V) && v->nnotes) {
@@ -816,7 +819,7 @@ static void intonation(const struct voice *v, double base)
 		t0 = segs[i].t0;
 		t1 = segs[j - 1].t0 + segs[j - 1].dur;
 		top = base * (1 + 0.12 * mod);
-		bot = base * (1 - 0.08 * mod);
+		bot = base * (1 - 0.08 * mod * final_k);
 		for (k = i; k < j; k++)
 			if ((ph[segs[k].ph].flags & V) && segs[k].stress == 2)
 				last_stress = k;
@@ -839,8 +842,8 @@ static void intonation(const struct voice *v, double base)
 					add_pp(t1, line * (1 + 0.45 * mod));
 				} else {
 					add_pp(s->t0, line * (1 + 0.22 * mod));
-					add_pp(s->t0 + s->dur, line * (1 - 0.18 * mod));
-					add_pp(t1, line * (1 - 0.25 * mod));
+					add_pp(s->t0 + s->dur, line * (1 - 0.18 * mod * final_k));
+					add_pp(t1, line * (1 - 0.25 * mod * final_k));
 				}
 			} else {
 				add_pp(s->t0, line * (1 + 0.14 * mod));
@@ -1305,6 +1308,7 @@ int main(int argc, char **argv)
 		v.w[W_PITCH] = FS / ptv.nom;
 		v.w[W_PMOD] = 100;
 		v.w[W_RATE] = PT_RATE;
+		final_k = 0.3;   /* the recordings sound wrong drawn out or pitched down */
 	} else if (voice_load(&v, dir, id)) {
 		fprintf(stderr, "macintalk: no voice %s in %s (run tools/fetch-macintalk.py)\n",
 		        vname, dir);

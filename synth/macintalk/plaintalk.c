@@ -11,6 +11,7 @@
 
 #define PT_NW 50            /* wave-phonemes: the diphone tables are 50 x 50 */
 #define PT_MAXN 256         /* most samples in a coded period */
+#define PT_LOWPASS 6000.0   /* Hz */
 
 struct ptunit {             /* one coded half-diphone */
 	uint32_t off, end;      /* in the file */
@@ -211,73 +212,105 @@ static int pt_entry(struct ptvoice *v, int side, int l, int r, uint32_t *off)
 	return -1;
 }
 
-/* one decoded period (or, in the consonant streams, one frame) */
-struct ptframe {
-	float x[PT_MAXN];
-	int len;        /* its length as recorded, samples */
-	int voiced;     /* follows the pitch */
+/* The decoded sound of the phoneme being made, and its pitch marks */
+struct ptmark {
+	int pos, per;   /* where a period starts in sig, and its length */
+	int lo, hi;     /* the half-diphone it belongs to, in sig */
+	int voiced;
 };
 
-static struct ptframe *frames;
-static int nframes, aframes;
+static float *sig;
+static int nsig, asig;
+static struct ptmark *marks;
+static int nmarks, amarks;
 
-static struct ptframe *pt_new_frame(void)
+static void *grow(void *p, int *cap, int need, size_t size)
 {
-	if (nframes >= aframes) {
-		aframes = aframes ? aframes * 2 : 1024;
-		frames = realloc(frames, sizeof(*frames) * aframes);
-		if (!frames) {
-			fprintf(stderr, "macintalk: out of memory\n");
-			exit(1);
-		}
+	if (need <= *cap)
+		return p;
+	while (*cap < need)
+		*cap = *cap ? *cap * 2 : 4096;
+	p = realloc(p, size * *cap);
+	if (!p) {
+		fprintf(stderr, "macintalk: out of memory\n");
+		exit(1);
 	}
-	return &frames[nframes++];
+	return p;
 }
 
-/* Decode the half-diphone at byte off of its stream.  A unit is one byte,
- * then frames of: a gain byte (4-bit exponent, 4-bit mantissa), a lag byte
- * and N/dim codebook indices.  Each period is the signal one period plus
- * (lag - 1) samples back, plus the gain times the codebook vectors.  A gain
- * byte with the top bit set starts the last, partial frame, which we leave
- * out. */
+static void pt_mark(int pos, int per, int lo, int voiced)
+{
+	marks = grow(marks, &amarks, nmarks + 1, sizeof(*marks));
+	marks[nmarks].pos = pos;
+	marks[nmarks].per = per;
+	marks[nmarks].lo = lo;
+	marks[nmarks].hi = 0;
+	marks[nmarks].voiced = voiced;
+	nmarks++;
+}
+
+/* Decode the half-diphone at byte off of its stream and add it to sig.
+ * A unit is one byte, then frames of: a gain byte (4-bit exponent, 4-bit
+ * mantissa), a lag byte and N/dim codebook indices, N samples of sound.
+ * Each sample is the one a pitch period back (N + lag - 1 samples) plus
+ * the gain times its codebook vector's sample.  A gain byte with the top
+ * bit set starts the last frame, which holds its low 7 bits of indices. */
 static int pt_unit(struct ptvoice *v, int side, int cons, uint32_t off, int voiced)
 {
-	int s = side + 2 * cons, k = 0, i, N = v->N, nidx = v->N / v->dim, f0 = nframes;
+	int s = side + 2 * cons, k = 0, i, N = v->N, start = nsig, m0 = nmarks;
 	struct ptunit *u = pt_find_unit(v, s, v->sec[2 + s] + off);
 	const unsigned char *p, *e;
+	int lags[1024], nl = 0;
 
 	if (!u)
 		return -1;
 	p = v->d + u->off + 1;
 	e = v->d + u->end;
-	while (p + 2 + nidx <= e && !(p[0] & 0x80)) {
-		int A = p[0], lag = N + p[1] - 1;
-		double g = (16 + (A & 15)) * pow(2, A >> 4) / 256.0 / 32768.0;
-		int len = cons ? v->nom : k < u->nper ? v->per[side][u->per0 + k] : v->nom;
-		struct ptframe *fr = pt_new_frame();
-		for (i = 0; i < N; i++) {
-			/* sample i of this frame is sample k*N + i of the unit */
-			int back = k * N + i - lag;
-			double x = 0;
-			if (k > 0 && back >= 0) {
-				int bf = back / N, bi = back % N;
-				x = bf < k ? frames[f0 + bf].x[bi] : fr->x[bi];
-			}
-			fr->x[i] = (float)x;
+	while (p + 2 <= e) {
+		int A = p[0], B = p[1], last = A & 0x80, nidx = last ? A & 0x7f : N / v->dim;
+		int lag = N + B - 1;
+		double g;
+		if (last)   /* its gain byte comes after its indices */
+			A = p + 2 + nidx < e ? p[2 + nidx] : 0x3f;
+		g = (16 + (A & 15)) * pow(2, A >> 4) / 256.0 / 32768.0;
+		if (p + 2 + nidx > e)
+			break;
+		sig = grow(sig, &asig, nsig + nidx * v->dim, sizeof(*sig));
+		for (i = 0; i < nidx * v->dim; i++) {
+			int back = nsig - lag;
+			double x = k > 0 && back >= start ? sig[back] : 0;
+			sig[nsig++] = (float)(x + v->cb[p[2 + i / v->dim]][i % v->dim] * g);
 		}
-		for (i = 0; i < nidx; i++) {
-			const int16_t *c = v->cb[p[2 + i]];
-			int j;
-			for (j = 0; j < v->dim; j++)
-				fr->x[i * v->dim + j] += (float)(c[j] * g);
-		}
-		if (len < 20 || len > 400)
-			len = v->nom;
-		fr->len = len;
-		fr->voiced = voiced;
+		if (nl < 1024)
+			lags[nl++] = B < 50 ? lag : 0;
 		p += 2 + nidx;
 		k++;
+		if (last)
+			break;
 	}
+	/* pitch marks: the recorded period lengths, or for the consonants
+	 * the lags (unvoiced: the voice's usual period) */
+	if (!cons) {
+		int pos = start;
+		for (i = 0; i < u->nper && pos < nsig; i++) {
+			int per = v->per[side][u->per0 + i];
+			if (per < 20 || per > 400)
+				per = v->nom;
+			pt_mark(pos, per, start, 1);
+			pos += per;
+		}
+	} else {
+		int pos = start;
+		while (pos < nsig) {
+			int f = (pos - start) / N, per = f < nl ? lags[f] : 0, vo = voiced && per > 0;
+			if (!vo || per < 20 || per > 400)
+				per = v->nom;
+			pt_mark(pos, per, start, vo);
+			pos += per;
+		}
+	}
+	for (i = m0; i < nmarks; i++)
+		marks[i].hi = nsig;
 	return k;
 }
 
@@ -362,13 +395,34 @@ static int pt_half(struct ptvoice *v, int side, int l, int r, int voiced)
 	return -1;
 }
 
+/* The coding (2 bits a sample) leaves a hiss over the whole band: take
+ * off what is above the speech (a 4-pole low-pass at PT_LOWPASS Hz). */
+static void pt_lowpass(float *x, int n)
+{
+	int pass, i;
+	double w0 = 2 * M_PI * PT_LOWPASS / FS, al = sin(w0) / (2 * 0.7071), c = cos(w0);
+	double b0 = (1 - c) / 2 / (1 + al), b1 = (1 - c) / (1 + al), a1 = -2 * c / (1 + al),
+	       a2 = (1 - al) / (1 + al);
+	for (pass = 0; pass < 2; pass++) {
+		double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+		for (i = 0; i < n; i++) {
+			double y = b0 * x[i] + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+			x2 = x1;
+			x1 = x[i];
+			y2 = y1;
+			y1 = y;
+			x[i] = (float)y;
+		}
+	}
+}
+
 static float *pt_synth(struct ptvoice *v, int *nout)
 {
 	double total = nseg ? segs[nseg - 1].t0 + segs[nseg - 1].dur : 0;
-	int cap = (int)(total * 2.6 * FS / 1000) + FS, n = 0, i;
+	int cap = (int)(total * 2.6 * FS / 1000) + 2 * FS, i, j;
 	float *out = calloc(cap, sizeof(float));
 	int *w = malloc(sizeof(int) * (ntok + 2));
-	double t_ms = 0;
+	double cur = 0;   /* output time of the next pitch mark, samples */
 
 	if (!out || !w)
 		return NULL;
@@ -376,65 +430,57 @@ static float *pt_synth(struct ptvoice *v, int *nout)
 		w[i] = pt_wave(toks[i].ph, i + 1 < ntok ? toks[i + 1].ph : 0, i ? toks[i - 1].ph : 0);
 
 	for (i = 0; i < ntok; i++) {
-		double want = 0, have = 0, pos, step;
-		int k, f0, f1, l = i ? w[i - 1] : 0, r = i + 1 < ntok ? w[i + 1] : 0, voiced;
+		double want = 0, rate, t, end;
+		int k, l = i ? w[i - 1] : 0, r = i + 1 < ntok ? w[i + 1] : 0, voiced;
 		for (k = 0; k < nseg; k++)
 			if (segs[k].tok == i)
 				want += segs[k].dur;
+		want *= FS / 1000.0;
 		if (w[i] == 0) {   /* a pause */
-			int m = (int)(want * FS / 1000);
-			for (k = 0; k < m && n < cap; k++)
-				out[n++] = 0;
-			t_ms += want;
+			cur += want;
 			continue;
 		}
 		/* this phoneme is the second half of l-it and the first half of it-r */
 		voiced = w[i] < 38;
-		f0 = nframes;
+		nsig = nmarks = 0;
 		pt_half(v, 1, l, w[i], voiced);
 		pt_half(v, 0, w[i], r, voiced);
-		f1 = nframes;
-		if (f1 == f0)
+		if (!nmarks)
 			continue;
-		for (k = f0; k < f1; k++)
-			have += frames[k].len;
-		have = have * 1000.0 / FS;
-		/* stretch or squeeze it to its length by repeating or dropping frames */
-		step = want > 0 ? have / want : 1;
-		if (step < 0.4)
-			step = 0.4;
-		if (step > 2.5)
-			step = 2.5;
-		pos = 0;
-		while (pos < have) {
-			int fi, j, L;
-			double acc = 0, per;
-			struct ptframe *fr;
-			for (fi = f0; fi < f1 - 1; fi++) {
-				acc += frames[fi].len * 1000.0 / FS;
-				if (acc > pos)
-					break;
+		/* TD-PSOLA: put out the recorded periods, each in a window two
+		 * periods wide, at the spacing the pitch wants, repeating or
+		 * dropping periods to give the phoneme its length */
+		rate = want > 0 ? nsig / want : 1;
+		if (rate < 0.4)
+			rate = 0.4;
+		if (rate > 2.5)
+			rate = 2.5;
+		t = 0;
+		end = nsig / rate;
+		while (t < end) {
+			double ip = t * rate, step;
+			int m = 0, P, c, o;
+			for (k = 1; k < nmarks; k++)
+				if (fabs(marks[k].pos - ip) < fabs(marks[m].pos - ip))
+					m = k;
+			P = marks[m].per;
+			c = marks[m].pos;
+			step = marks[m].voiced ? FS / pitch_at(cur * 1000.0 / FS) : P;
+			o = (int)lrint(cur);
+			for (j = -P; j < P; j++) {
+				int si = c + j, oi = o + j;
+				double wv;
+				if (si < marks[m].lo || si >= marks[m].hi || oi < 0 || oi >= cap)
+					continue;
+				wv = 0.5 - 0.5 * cos(M_PI * (j + P) / P);
+				out[oi] += (float)(sig[si] * wv);
 			}
-			fr = &frames[fi];
-			/* a voiced period is resampled to the pitch wanted */
-			per = fr->voiced ? FS / pitch_at(t_ms) : fr->len;
-			L = (int)lrint(per < 20 ? 20 : per);
-			if (n + L >= cap)
-				break;
-			for (j = 0; j < L; j++) {
-				double t = (double)j * v->N / L, fr_;
-				int a = (int)t;
-				fr_ = t - a;
-				out[n + j] = fr->x[a % v->N] * (float)(1 - fr_) +
-				             fr->x[(a + 1) % v->N] * (float)fr_;
-			}
-			n += L;
-			t_ms += L * 1000.0 / FS;
-			pos += L * 1000.0 / FS * step;
+			t += step;
+			cur += step;
 		}
-		nframes = f0;
 	}
 	free(w);
-	*nout = n;
+	*nout = (int)cur + 1 < cap ? (int)cur + 1 : cap;
+	pt_lowpass(out, *nout);
 	return out;
 }

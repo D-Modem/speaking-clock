@@ -75,6 +75,6 @@ voices rather than exactly like them.
 
 The PlainTalk voices (plaintalk.c) share steps 1 to 3. Then each phoneme is
 the second half of a recorded diphone into it and the first half of one out
-of it, decoded from the voice's codebook, stretched to its length by
-repeating or dropping periods, and each voiced period is resampled to the
-pitch. Their high quality versions aren't supported yet.
+of it, decoded from the voice's codebook, and set to its length and pitch
+by TD-PSOLA (the recorded periods, windowed, placed at the new spacing).
+Their high quality versions aren't supported yet.

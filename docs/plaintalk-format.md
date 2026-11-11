@@ -100,9 +100,10 @@ are in 2 or 3. Silence has no halves of its own.
 ### A unit
 
 Each unit starts on a 4-byte boundary with one byte (unknown, mostly 100 to
-170), then frames. A frame codes one pitch period, resampled to *N*
-samples, where *N* is 96 for Agnes and Victoria and 160 for Bruce (it is not
-in the header; it is the frame size that makes all the units parse):
+170), then frames. A unit is one stretch of sound at 22050 Hz, cut into
+frames of *N* samples; *N* is 96 for Agnes and Victoria and 160 for Bruce
+(it is not in the header; it is the frame size that makes all the units
+parse). The frames are not pitch periods, they simply follow each other.
 
 | Bytes | |
 |---|---|
@@ -110,22 +111,21 @@ in the header; it is the frame size that makes all the units parse):
 | 1 | the lag *B* |
 | *N* / 4 | codebook indices |
 
-The period is the unit's signal one period plus *B* − 1 samples back
-(predicted from what came before in the same unit, period by period) plus
-the gain times the codebook vectors, one vector for each 4 samples. The
-first frame of a unit has nothing before it, low nibble 0 in *A* and *B* = 1.
-Lags of 50 and more turn up in noisy and changing frames; what they mean
-exactly is not certain, and taking them as plain lags works.
+Each sample is the sample one pitch period back, *N* + *B* − 1 samples
+earlier in the same unit, plus the gain times its sample of the codebook
+vector (one vector for each 4 samples). The first frame has nothing before
+it (low nibble 0 in *A*, and *B* = 1). In voiced sound *N* + *B* − 1 is the
+pitch period: it matches the recorded period lengths of sections 6 and 7
+to within a sample or two. Lags of 50 and more turn up in noisy and
+changing frames; taking them as plain lags works.
 
-The last frame is shorter: its first byte has the top bit set and the low
-7 bits are its number of indices, then the lag and the indices, then one
-more byte (it looks like a gain), then padding to the next 4-byte
-boundary. It is probably the part of a period up to the diphone's
-boundary; `synth/macintalk` leaves it out.
+The last frame is shorter: its first byte has the top bit set and its low
+7 bits are its number of indices, then come the lag, the indices, the
+frame's gain byte, and padding to the next 4-byte boundary.
 
-A voiced unit's whole frames are its periods, and section 6 or 7 gives
-each one's length as recorded. Consonant units have no such list; their
-frames are taken as one typical period (header word 1) long.
+A voiced unit's samples add up to the sum of its period lengths in section
+6 or 7 (give or take 3), so those lengths are its pitch marks. Consonant
+units have no list; the lags give the periods of the voiced ones.
 
 ## How `synth/macintalk` uses it
 
@@ -133,14 +133,16 @@ The text front end, timing and pitch are the same as for the MacInTalk 3
 voices. Each phoneme becomes a wave-phoneme (with the r-coloured vowels,
 and p, t, k after s), and is made of the second half of the diphone from
 the phoneme before it and the first half of the diphone into the phoneme
-after it. Frames are repeated or dropped to give the phoneme its length,
-and each voiced period is resampled from *N* samples to the period the
-pitch wants (the coding makes this the natural way to change the pitch;
-it also moves the formants a little). The rest of the voice, Apple's
-rules for the timing and the pitch, is not used.
+after it. That sound is changed to the length and pitch wanted with
+TD-PSOLA: each recorded period, in a window two periods wide, is placed at
+the spacing the pitch wants, and periods are repeated or dropped for the
+length. A low-pass filter at 6 kHz takes off the hiss of the 2-bit coding.
+For these voices the phrase ends slow down and fall less than for the
+MacInTalk 3 voices. The rest of the voice, Apple's rules for the timing and
+the pitch, is not used.
 
 ## Not done
 
 - The "high quality" voices code 2 samples per codebook vector (a 1024-byte
   codebook) and their last frames are not marked the same way.
-- The unit's first byte, the end byte, header word 4 and section 11.
+- The unit's first byte, header word 4 and section 11.
