@@ -36,8 +36,14 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
 3. Each unit is a run of frames: a 20th-order spectrum (line spectral
    frequencies) and a gain, with a pitch pulse for voiced frames and noise
    for the others. The frames are played through the filter at a new pace
-   and with a new pitch: each vowel follows a tone from the voice's own
-   tone table (accented, plain, or falling at the end of a phrase), and the
-   sounds between vowels glide from one to the next.
+   and with a new pitch. Each phrase starts near 100 Hz, the first stressed
+   word rises above it, and the phrase sinks to about 73 Hz at its end,
+   the shape measured from Sam's own recordings (Mike and Mary are scaled
+   to their own pitch, from their tone tables). The spectrum glides from
+   frame to frame, the loudness of a unit's first frames leans toward the
+   unit before it, each pitch pulse is blended with the one before (the
+   stored pulses are rougher than Sam's speech), the gap between loud
+   vowels and quiet consonants is narrowed a little, and a treble lift
+   restores the brightness of the original recordings.
 
 docs/mssam-format.md describes the voice data.
