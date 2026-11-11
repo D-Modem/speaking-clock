@@ -7,6 +7,10 @@
   - Every voice renders a minute of sound at a few times of day without
     crashing Asterisk, and isn't silent.
 
+  - With TTS_VOICE=<a live voice>, that voice speaks (needs its
+    synthesiser, tts_program_* in speakingclock.conf) and its made-up third pip
+    lands on the second.  Live voices are left out otherwise.
+
 Run as a user that may use `asterisk -rx`, with the module loaded and the
 voices installed:  test/render_test.py
 """
@@ -46,7 +50,8 @@ def render(voice, start, seconds, zone="UTC"):
     return struct.unpack("<%dh" % (len(d) // 2), d)
 
 
-voices = [l.split()[0] for l in cli("speakingclock show voices").splitlines()[1:] if l.strip()]
+rows = [l.split() for l in cli("speakingclock show voices").splitlines()[1:] if l.strip()]
+voices = [r[0] for r in rows if r[1] != "tts"]
 ok(len(voices) >= 80, "voices listed: %d" % len(voices))
 
 # the time marks: start 5 s before 16:15:00 UTC, look at three cycles.
@@ -96,6 +101,21 @@ for v in voices:
             ok(False, "%s at %d: %s" % (v, t, e))
             continue
         ok(max(abs(x) for x in a) > 1000, "%s at %d: silent" % (v, t))
+
+# a live voice: speech before the pips, and the third made-up pip (1 kHz)
+# exactly on the second
+tts = os.environ.get("TTS_VOICE")
+if tts:
+    a = render(tts, T, 32)
+    tone = [int(8000 * __import__("math").sin(2 * 3.141592653589793 * 1000 * i / RATE)) for i in range(80)]
+    raw = struct.pack("<%dh" % len(a), *a)
+    marks = []
+    for k in range(len(a) // (10 * RATE) + 1):
+        second = (k + 1) * 10 * RATE - (T * RATE) % (10 * RATE)   # samples to each :x0
+        if second + 80 <= len(a):
+            marks.append(list(a[second:second + 80]) == tone)
+    ok(marks and all(marks), "%s: third pip on the second %s" % (tts, marks))
+    ok(max(abs(x) for x in a[:3 * RATE]) > 1000, "%s: no speech" % tts)
 ok("Asterisk" in cli("core show version"), "Asterisk still up")
 
 print("%s" % ("all passed" if not failed else "%d failed" % failed))

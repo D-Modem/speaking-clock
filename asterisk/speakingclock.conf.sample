@@ -22,3 +22,15 @@
 
 ; Hang up after this many seconds (0: never).  The d() option overrides it.
 ;maxduration=180
+
+; The live DECtalk and SAM voices run the synthesiser on this machine, with
+; no server.  Default: dectalk and sam, found on the PATH.
+;tts_program_dectalk=/opt/dectalk/say
+;tts_program_sam=/usr/local/bin/sam
+
+; Seconds a synthesiser program may take before it is stopped.
+;tts_timeout=15
+
+; The live Microsoft Sam, Mike and Mary voices run synth/mssam (default:
+; mssam, found on the PATH).
+;tts_program_mssam=/usr/local/bin/mssam

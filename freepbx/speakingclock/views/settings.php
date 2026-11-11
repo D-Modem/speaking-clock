@@ -24,5 +24,9 @@ include __DIR__ . '/_form.php';
 		_('For clocks without one of their own.'));
 	$row('maxduration', _('Hang up after (seconds)'), $text('maxduration', $s['maxduration']),
 		_('How long a call may listen, 0 for no limit.'));
+	$row('tts_program_dectalk', _('DECtalk program'), $text('tts_program_dectalk', $s['tts_program_dectalk']),
+		_('For the live DECtalk voices (live-dectalk-*): DECtalk\'s say, run on this machine. Blank: dectalk on the PATH.'));
+	$row('tts_program_sam', _('SAM program'), $text('tts_program_sam', $s['tts_program_sam']),
+		_('For the live SAM voices (live-sam-*): the sam program, run on this machine. Blank: sam on the PATH.'));
 	?>
 </form>

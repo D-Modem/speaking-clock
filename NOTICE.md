@@ -63,3 +63,36 @@ subject to the terms of the engines that produced them.
 From [garrysblog/Speaking-Clock-MP3-Files](https://github.com/garrysblog/Speaking-Clock-MP3-Files),
 made with an online text-to-speech service for an Arduino clock. Its README
 says the files are "free to download and use in your own projects".
+
+### Speech synthesisers (`voices/sapi4-*`, `voices/dectalk-*`, `voices/sam-*`, `voices/mac-*`)
+Made by `tools/synth_voices.py`, which has each synthesiser speak every
+phrase and number the clock needs. The synthesisers, and the sound of their
+voices, belong to their owners:
+
+- **SAPI4 voices** (`sapi4-*`): Microsoft Sam, Mike and Mary (Microsoft
+  Speech API 4.0), Lernout & Hauspie TruVoice and TTS3000, and RoboSoft.
+  They were spoken by the public SAPI4 service at <https://www.tetyys.com/SAPI4/>,
+  which runs Microsoft's SAPI4 runtime and voices. Microsoft, Lernout &
+  Hauspie and BonziBUDDY are trademarks of their owners. The `bonzibuddy`
+  voice is TruVoice Adult Male #2 at the pitch and speed BonziBUDDY used.
+  The live voices (`live-*`) hold no recordings: each sentence is spoken
+  when it is needed, by DECtalk or SAM on the Asterisk machine.
+- **Microsoft Sam, Mike and Mary (and for telephone), live** (`live-mssam-*`): no recordings.
+  Each sentence is spoken on the Asterisk machine by `synth/mssam`, our own
+  synthesiser (GPL-2.0-or-later, like the rest of this repository), which
+  reads the voice data of Microsoft's Speech API 4 voices. That data is
+  Microsoft's and is not in this repository: `tools/fetch-mssam.py`
+  downloads Microsoft's package (msttsl.exe) from the Internet Archive and
+  keeps only the voice data, none of Microsoft's programs. Microsoft is a
+  trademark of Microsoft Corporation. The word list in
+  `synth/mssam/lexicon.h`, and the `cmudict.dict` the fetch script
+  downloads, are from the CMU Pronouncing Dictionary, © 1993-2015 Carnegie
+  Mellon University, under its BSD-style licence (in `lexicon.h`).
+- **DECtalk** (`dectalk-*`): DECtalk 4.x, made by Digital Equipment
+  Corporation and later Fonix. Built from the source at
+  <https://github.com/dectalk/dectalk>.
+- **SAM** (`sam-*`): Software Automatic Mouth, Don't Ask Software, 1982 (now
+  SoftVoice, Inc.). Built from the C port at <https://github.com/s-macke/SAM>.
+- **MacInTalk and PlainTalk** (`mac-*`): Apple's voices (MacinTalk 3, and
+  the PlainTalk MacinTalk Pro voices Victoria, Agnes, Bruce and Vicki),
+  spoken by macOS's `say`.

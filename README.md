@@ -1,8 +1,10 @@
 # speaking-clock
 
-A telephone speaking clock for Asterisk and FreePBX, with 81 voices: the UK's
-TIM (Pat Simmons), Australia's Gordon Gow, and the whole Steve's Talking
-Clock library of talking clocks, watches and speech synthesisers.
+A telephone speaking clock for Asterisk and FreePBX. Its voices include the
+UK's TIM (Pat Simmons), Australia's Gordon Gow, the whole Steve's Talking
+Clock library of talking clocks and watches, and classic speech synthesisers
+(Microsoft Sam and the other SAPI4 voices, DECtalk, SAM, MacInTalk, PlainTalk), each
+able to give the time to the second.
 
 - **`asterisk/`**: `app_speakingclock`, the `SpeakingClock()` dialplan
   application, written in C.
@@ -66,6 +68,28 @@ Asterisk logs "Couldn't find application SpeakingClock in XML
 documentation" because a module built outside Asterisk's tree has no XML
 docs installed. The warning does no harm.
 
+## Live voices
+
+A voice with `mode=tts` has no clips. The module runs a synthesiser on the
+Asterisk machine for each announcement's whole sentence ("At the third
+stroke, it will be four fifteen and twenty seconds."), a little ahead of
+when it is needed, so the call never waits on it. The `live-dectalk-*` and
+`live-sam-*` voices run DECtalk's `say` and `sam`. Set where they are in
+speakingclock.conf:
+
+```
+tts_program_dectalk=/opt/dectalk/say
+tts_program_sam=/usr/local/bin/sam
+```
+
+The `live-mssam-*` voices (Microsoft Sam, Mike and Mary, and Mike and Mary
+for telephone) run
+[synth/mssam](synth/mssam), our own synthesiser, which reads Microsoft's
+voice data (`cd synth/mssam && make && make voices && sudo make install`
+builds it and fetches the data). Its setting is `tts_program_mssam`.
+
+See [docs/voice-format.md](docs/voice-format.md#live-voices-modetts).
+
 ## FreePBX
 
 Pack `freepbx/speakingclock` into a tarball and install it with Module Admin
@@ -80,6 +104,21 @@ a number to dial from extensions.
 ```sh
 tools/fetch-sources.sh sources        # curl, git, unzip, 7z or innoextract
 tools/build_voices.py sources voices  # ffmpeg
+```
+
+The synthesiser voices come from `tools/synth_voices.py`. It has the
+synthesiser speak every clip on its own (a whole number, "and twenty
+seconds", "At the third stroke, it will be"), so they are `tim` voices that
+give the time to the second, with the module making the pips:
+
+```sh
+tools/synth_voices.py --list                        # the voices it knows
+tools/synth_voices.py voices sapi4:microsoft-sam    # SAPI4, via tetyys.com
+DECTALK_SAY=~/dectalk/dist/say tools/synth_voices.py voices dectalk:paul
+SAM=~/SAM/sam tools/synth_voices.py voices sam:sam
+MSSAM=synth/mssam/mssam tools/synth_voices.py --live voices mssam:sam  # live-mssam-sam
+tools/synth_voices.py voices mac:Fred                # MacInTalk, on a Mac
+tools/synth_voices.py voices mac:Victoria            # PlainTalk, on a Mac
 ```
 
 ## Licence

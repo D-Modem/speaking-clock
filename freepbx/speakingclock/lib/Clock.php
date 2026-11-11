@@ -22,6 +22,8 @@ class Clock
 			'default_voice' => 'tim-pat-simmons',
 			'timezone' => '',
 			'maxduration' => 180,
+			'tts_program_dectalk' => '',
+			'tts_program_sam' => '',
 		];
 	}
 
@@ -62,6 +64,8 @@ class Clock
 			'default_voice' => self::str($a, 'default_voice', $d['default_voice']),
 			'timezone' => self::str($a, 'timezone'),
 			'maxduration' => self::str($a, 'maxduration', (string)$d['maxduration']),
+			'tts_program_dectalk' => self::str($a, 'tts_program_dectalk'),
+			'tts_program_sam' => self::str($a, 'tts_program_sam'),
 		];
 	}
 
@@ -105,6 +109,9 @@ class Clock
 			$e['timezone'] = _('Not a time zone');
 		if (!preg_match('/^\d{1,6}$/', (string)$s['maxduration']))
 			$e['maxduration'] = _('Seconds, 0 for no limit');
+		foreach (['tts_program_dectalk', 'tts_program_sam'] as $k)
+			if ($s[$k] !== '' && !preg_match('#^/[^\s;]*\z#', $s[$k]))
+				$e[$k] = _('A full path, with no spaces');
 		return $e;
 	}
 
@@ -248,6 +255,9 @@ class Clock
 		if ($s['timezone'] !== '')
 			$o .= 'timezone=' . $s['timezone'] . "\n";
 		$o .= 'maxduration=' . (int)$s['maxduration'] . "\n";
+		foreach (['tts_program_dectalk', 'tts_program_sam'] as $k)
+			if ($s[$k] !== '')
+				$o .= $k . '=' . $s[$k] . "\n";
 		return $o;
 	}
 }
