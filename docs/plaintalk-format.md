@@ -1,7 +1,8 @@
 # PlainTalk voice files
 
 What `synth/macintalk` knows about Apple's PlainTalk voices (MacinTalk Pro
-1.5: Agnes, Bruce and Victoria). It was worked out from the voices' data
+1.5: Agnes, Bruce and Victoria, each in a standard and a high quality
+version). It was worked out from the voices' data
 alone: by reading the tables, decoding the sound and checking the result
 by ear and with a speech recogniser. No Apple code was run, emulated,
 disassembled or read to find it.
@@ -28,8 +29,8 @@ and these resources:
 | `vers`, `STR `, `ftag` | version 1.4.2, "English Text-To-Speech 1.5.3", © 1992-98 |
 
 The script writes each voice's `gtss` 3 to `<voice>.gtss` (`agnes.gtss`,
-`bruce.gtss`, `victoria.gtss`). The three "high quality" voices code their
-sound differently (see the end) and are left out for now.
+`bruce.gtss`, `victoria.gtss`, and `agnes-hq.gtss` and so on for the files
+called "Agnes, high quality" and so on).
 
 The MacinTalk Pro extension itself holds the English text rules and
 dictionary (`gtst`), the phoneme and allophone lists (`gtsp`, `gtsa`) and
@@ -44,9 +45,9 @@ All big-endian. A 16-byte header, then twelve 32-bit offsets of sections
 | Header word | Agnes, Bruce, Victoria | What it is |
 |---|---|---|
 | 0 | 50 | the number of wave-phonemes (the tables are 50 × 50) |
-| 1, 2 | 100, 185, 125 | the speaker's typical pitch period, samples at 22050 Hz |
+| 1, 2 | 100, 185, 125 (Victoria high quality: 70) | about the speaker's pitch period, samples at 22050 Hz; the median of the recorded periods (101, 191, 108) is better |
 | 4 | 5739, 3922, 7804 | unknown |
-| 7 | 0x0702 (high quality: 0x0403) | the coding |
+| 7 | 0x0702, high quality 0x0403 | the coding |
 
 | Section | Size (Agnes) | What it is |
 |---|---|---|
@@ -60,7 +61,7 @@ All big-endian. A 16-byte header, then twelve 32-bit offsets of sections
 | 7 | 21668 | period lengths of the units in section 3 |
 | 8 | 52 | a class for each wave-phoneme: 0, 1 (vowels and sonorants) or 2 (f, th, s, sh) |
 | 9 | 172 | for each of the 86 allophones, its wave-phoneme and a second one (for ch, j and syllabic consonants) |
-| 10 | 2048 | the codebook: 256 vectors of 4 signed 16-bit samples |
+| 10 | 2048 | the codebook: 256 vectors of 4 signed 16-bit samples (high quality: 1024 bytes, 256 vectors of 2) |
 | 11 | 352 | unknown (the same in every voice) |
 
 ### The wave-phonemes
@@ -88,7 +89,8 @@ the middle of *right*). An entry is two 32-bit words:
 
 - `0xffffffff, …`: no such diphone.
 - `0x0000ffff, (l << 16) | r`: use diphone *l*–*r* instead.
-- otherwise the unit's offset in its section divided by 4, then a second
+- otherwise the unit's offset in its section divided by 4 (by 8 in the
+  high quality voices; it can be more than 0xffff), then a second
   word: for a voiced unit a running count of the frames before it in its
   section, for a consonant unit the number of whole frames (high half)
   and a value up to about 120 (low half, unknown).
@@ -99,7 +101,7 @@ are in 2 or 3. Silence has no halves of its own.
 
 ### A unit
 
-Each unit starts on a 4-byte boundary with one byte (unknown, mostly 100 to
+Each unit starts on a 4-byte boundary (8 in high quality) with one byte (unknown, mostly 100 to
 170), then frames. A unit is one stretch of sound at 22050 Hz, cut into
 frames of *N* samples; *N* is 96 for Agnes and Victoria and 160 for Bruce
 (it is not in the header; it is the frame size that makes all the units
@@ -109,11 +111,11 @@ parse). The frames are not pitch periods, they simply follow each other.
 |---|---|
 | 1 | the gain *A*: a 4-bit exponent and 4-bit mantissa, gain = (16 + (*A* & 15)) × 2^(*A* >> 4) / 256. Its top bit is clear. |
 | 1 | the lag *B* |
-| *N* / 4 | codebook indices |
+| *N* / 4 (high quality *N* / 2) | codebook indices |
 
 Each sample is the sample one pitch period back, *N* + *B* − 1 samples
 earlier in the same unit, plus the gain times its sample of the codebook
-vector (one vector for each 4 samples). The first frame has nothing before
+vector (one vector for each 4 samples, or 2). The first frame has nothing before
 it (low nibble 0 in *A*, and *B* = 1). In voiced sound *N* + *B* − 1 is the
 pitch period: it matches the recorded period lengths of sections 6 and 7
 to within a sample or two. Lags of 50 and more turn up in noisy and
@@ -121,7 +123,7 @@ changing frames; taking them as plain lags works.
 
 The last frame is shorter: its first byte has the top bit set and its low
 7 bits are its number of indices, then come the lag, the indices, the
-frame's gain byte, and padding to the next 4-byte boundary.
+frame's gain byte, and padding to the next unit.
 
 A voiced unit's samples add up to the sum of its period lengths in section
 6 or 7 (give or take 3), so those lengths are its pitch marks. Consonant
@@ -136,13 +138,12 @@ the phoneme before it and the first half of the diphone into the phoneme
 after it. That sound is changed to the length and pitch wanted with
 TD-PSOLA: each recorded period, in a window two periods wide, is placed at
 the spacing the pitch wants, and periods are repeated or dropped for the
-length. A low-pass filter at 6 kHz takes off the hiss of the 2-bit coding.
+length. A low-pass filter at 6 kHz takes off the hiss of the coding (2
+bits a sample, 4 in high quality).
 For these voices the phrase ends slow down and fall less than for the
 MacInTalk 3 voices. The rest of the voice, Apple's rules for the timing and
 the pitch, is not used.
 
 ## Not done
 
-- The "high quality" voices code 2 samples per codebook vector (a 1024-byte
-  codebook) and their last frames are not marked the same way.
 - The unit's first byte, header word 4 and section 11.

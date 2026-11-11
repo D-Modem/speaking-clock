@@ -22,8 +22,9 @@ struct ptvoice {
 	unsigned char *d;
 	size_t n;
 	uint32_t sec[13];
-	int nom;                /* the voice's own period, samples at 22050 Hz */
-	int dim;                /* samples per codebook vector */
+	int nom;                /* the speaker's usual period, samples at 22050 Hz */
+	int dim;                /* samples per codebook vector: 4, or 2 in high quality */
+	int align;              /* units start on multiples of this many bytes */
 	int N;                  /* samples in a coded period */
 	int16_t cb[256][4];
 	uint32_t tab[2][PT_NW * PT_NW][2];
@@ -47,7 +48,7 @@ static int u32cmp(const void *a, const void *b)
 
 /* How many of the units parse cleanly as frames of N samples: whole
  * frames, then a last frame whose first byte has the top bit set and holds
- * its index count, then one byte and up to 3 bytes of padding. */
+ * its index count, then one byte and padding to the next unit. */
 static int pt_fit(struct ptvoice *v, int N)
 {
 	int s, i, ok = 0, F = 2 + N / v->dim;
@@ -58,7 +59,7 @@ static int pt_fit(struct ptvoice *v, int N)
 				p += F;
 			if (p < e) {
 				uint32_t end = p + 2 + (v->d[p] & 0x7f) + 1;
-				ok += end <= e && e <= end + 3;
+				ok += end <= e && e < end + v->align;
 			}
 		}
 	return ok;
@@ -98,8 +99,10 @@ static int pt_load(struct ptvoice *v, const char *dir, const char *id)
 		goto bad;
 	/* section 10: the codebook, 256 vectors */
 	v->dim = (int)(v->sec[11] - v->sec[10]) / 512;
-	if (v->dim != 4)   /* the high quality voices code differently; not done yet */
+	if (v->dim != 4 && v->dim != 2)
 		goto bad;
+	/* the tables count in units of 4 bytes, or 8 in the high quality voices */
+	v->align = 16 / v->dim;
 	for (i = 0; i < 256 * v->dim; i++)
 		v->cb[i / v->dim][i % v->dim] = (int16_t)be16(v->d + v->sec[10] + 2 * i);
 	/* sections 0 and 1: where the two halves of each diphone are */
@@ -120,6 +123,26 @@ static int pt_load(struct ptvoice *v, const char *dir, const char *id)
 			v->per[t][i] = (uint16_t)be16(p + 2 * i);
 		v->nper[t] = n;
 	}
+	/* the speaker's usual period: the median of the recorded ones (the
+	 * header's value is off for some voices) */
+	{
+		static int hist[401];
+		int total = 0, acc = 0;
+		memset(hist, 0, sizeof(hist));
+		for (t = 0; t < 2; t++)
+			for (i = 0; i < v->nper[t]; i++)
+				if (v->per[t][i] >= 20 && v->per[t][i] <= 400) {
+					hist[v->per[t][i]]++;
+					total++;
+				}
+		for (i = 20; i <= 400 && total; i++) {
+			acc += hist[i];
+			if (2 * acc >= total) {
+				v->nom = i;
+				break;
+			}
+		}
+	}
 	/* The units of each stream in order.  Streams 2 and 4 hold the first
 	 * halves (table 0), 3 and 5 the second halves (table 1); 4 and 5 the
 	 * halves that are consonants, wave-phoneme 31 and up. */
@@ -129,10 +152,10 @@ static int pt_load(struct ptvoice *v, const char *dir, const char *id)
 		for (i = 0; i < PT_NW * PT_NW; i++) {
 			int ph = side ? i % PT_NW : i / PT_NW;
 			uint32_t a = v->tab[side][i][0];
-			if (a >= 0xffff || (ph >= 31) != cons)
+			if (a == 0xffff || a == 0xffffffff || (ph >= 31) != cons)
 				continue;
-			if (v->sec[2 + s] + 4 * a < v->sec[3 + s])
-				o[n++] = a * 4;
+			if (v->sec[2 + s] + (uint32_t)v->align * a < v->sec[3 + s])
+				o[n++] = a * v->align;
 		}
 		qsort(o, n, sizeof(*o), u32cmp);
 		v->unit[s] = malloc(sizeof(struct ptunit) * (n + 1));
@@ -159,6 +182,14 @@ static int pt_load(struct ptvoice *v, const char *dir, const char *id)
 			}
 		}
 	}
+	if (getenv("MACINTALK_DEBUG"))
+		for (s = 0; s < 2; s++) {
+			int lists = 0;
+			for (i = 0; i < v->nper[s]; i++)
+				lists += v->per[s][i] == 0xffff;
+			fprintf(stderr, "%s: stream %d: %d units, %d period lists\n", id, 2 + s,
+			        v->nunit[s], lists);
+		}
 	/* the coded period length isn't in the header: find the one that fits */
 	for (i = 8; i <= PT_MAXN; i += 4) {
 		int fit = pt_fit(v, i);
@@ -203,7 +234,7 @@ static int pt_entry(struct ptvoice *v, int side, int l, int r, uint32_t *off)
 		if (a == 0xffffffff)
 			return -1;
 		if (a != 0xffff) {
-			*off = a * 4;
+			*off = a * v->align;
 			return 0;
 		}
 		l = b >> 16;

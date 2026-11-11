@@ -13,7 +13,8 @@ writes the voices' data resources as plain files:
                        docs/macintalk-format.md)
     OUT/<voice>.ttvw   the voice's sampled sound, for the voices that
                        have one (Bells, Boing, Cellos ...)
-  from Mac OS 8.6, the PlainTalk voices (Agnes, Bruce, Victoria):
+  from Mac OS 8.6, the PlainTalk voices (Agnes, Bruce, Victoria, and
+  their high quality versions agnes-hq, bruce-hq, victoria-hq):
     OUT/<voice>.gtss   the recorded diphones (see docs/plaintalk-format.md)
 
 Only data is read.  Nothing from the disks is run, and Apple's code (the
@@ -148,6 +149,8 @@ def resources(fork):
 
 
 def voice_id(name):
+    """'Pipe Organ' -> pipe-organ, 'Agnes, high quality' -> agnes-hq"""
+    name = name.replace(", high quality", " hq")
     return name.lower().replace(" ", "-")
 
 
@@ -165,8 +168,6 @@ def extract(hda, out):
         if creator == b"mtk3":      # MacinTalk 3
             want = {"ttvd": "ttvd", "ttvw": "ttvw"}
         elif creator == b"gala":    # MacinTalk Pro (PlainTalk)
-            if "high quality" in name:
-                continue  # coded differently; synth/macintalk can't read them yet
             # 'gtss' 3 is the voice's recorded sound; 'gtss' 4 is code: left out
             res = {k: v for k, v in res.items() if k == ("gtss", 3)}
             want = {"gtss": "gtss"}

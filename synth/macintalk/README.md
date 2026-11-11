@@ -5,7 +5,8 @@ classic Mac OS: Fred, Ralph, Kathy, Junior, Princess, Zarvox, Trinoids,
 Whisper, the singing voices (Cellos, Pipe Organ, Good News, Bad News) and
 the novelty ones (Bells, Boing, Bubbles, Albert, Bahh, Deranged,
 Hysterical). It also speaks with the PlainTalk voices Agnes, Bruce and
-Victoria, by joining their recorded diphones.
+Victoria (and their high quality versions), by joining their recorded
+diphones.
 
 It is a clean-room program. It has no Apple code and doesn't run, emulate or
 load any. It reads only the voices' data, which `tools/fetch-macintalk.py`
@@ -77,4 +78,4 @@ The PlainTalk voices (plaintalk.c) share steps 1 to 3. Then each phoneme is
 the second half of a recorded diphone into it and the first half of one out
 of it, decoded from the voice's codebook, and set to its length and pitch
 by TD-PSOLA (the recorded periods, windowed, placed at the new spacing).
-Their high quality versions aren't supported yet.
+Their high quality versions are agnes-hq, bruce-hq and victoria-hq.

@@ -75,8 +75,11 @@ Written by tools/voice_index.py. Every recording belongs to its original owner (
 | `live-mssam-mike-tel` | Microsoft Mike for Telephone, live | tts | mssam synthesiser |
 | `live-mssam-sam` | Microsoft Sam, live | tts | mssam synthesiser |
 | `live-plaintalk-agnes` | PlainTalk Agnes, live | tts | plaintalk synthesiser |
+| `live-plaintalk-agnes-hq` | PlainTalk Agnes (high quality), live | tts | plaintalk synthesiser |
 | `live-plaintalk-bruce` | PlainTalk Bruce, live | tts | plaintalk synthesiser |
+| `live-plaintalk-bruce-hq` | PlainTalk Bruce (high quality), live | tts | plaintalk synthesiser |
 | `live-plaintalk-victoria` | PlainTalk Victoria, live | tts | plaintalk synthesiser |
+| `live-plaintalk-victoria-hq` | PlainTalk Victoria (high quality), live | tts | plaintalk synthesiser |
 | `live-sam-elf` | SAM Elf, live | tts | sam synthesiser |
 | `live-sam-extra-terrestrial` | SAM Extra-Terrestrial, live | tts | sam synthesiser |
 | `live-sam-little-old-lady` | SAM Little Old Lady, live | tts | sam synthesiser |

@@ -1288,8 +1288,8 @@ int main(int argc, char **argv)
 				memcpy(id, e->d_name, l - 5);
 				id[l - 5] = 0;
 				if (!pt_load(&ptv, dir, id))
-					printf("%-12s %-12s %3d Hz %3d wpm  PlainTalk%s\n", id, id,
-					       FS / ptv.nom, PT_RATE, ptv.dim == 2 ? ", high quality" : "");
+					printf("%-12s %-12s %3d Hz %3d wpm  PlainTalk%s (N=%d)\n", id, id,
+					       FS / ptv.nom, PT_RATE, ptv.dim == 2 ? ", high quality" : "", ptv.N);
 			}
 		}
 		closedir(d);

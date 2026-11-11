@@ -108,7 +108,8 @@ voices, belong to their owners:
 - **PlainTalk, live** (`live-plaintalk-*`): no recordings in this
   repository. Each sentence is spoken on the Asterisk machine by the same
   `synth/macintalk`, which joins the recorded diphones of Apple's PlainTalk
-  (MacinTalk Pro) voices Agnes, Bruce and Victoria. Those recordings are
+  (MacinTalk Pro) voices Agnes, Bruce and Victoria (standard and high
+  quality). Those recordings are
   Apple's (© Apple Computer, Inc. 1992-1998) and are not in this
   repository: `tools/fetch-macintalk.py` downloads them from a Mac OS 8.6
   disk image on the Internet Archive. PlainTalk is a trademark of Apple

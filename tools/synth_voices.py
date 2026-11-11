@@ -34,9 +34,9 @@ Engines (a VOICE is engine:name, see --list):
            by our own synthesiser, synth/macintalk, from Apple's voice data
            (tools/fetch-macintalk.py gets it).  $MACINTALK is its program,
            $MACINTALK_VOICES the voice folder.  Works with --live.
-  plaintalk  The PlainTalk voices (Agnes, Bruce, Victoria), Apple's recorded
-           diphones joined by the same program, synth/macintalk.  Works
-           with --live.
+  plaintalk  The PlainTalk voices (Agnes, Bruce, Victoria, and their high
+           quality versions agnes-hq ...), Apple's recorded diphones
+           joined by the same program, synth/macintalk.  Works with --live.
 
 Needs ffmpeg and sox.
 """
@@ -173,6 +173,9 @@ PLAINTALK = {
     "agnes": ("Agnes", "female"),
     "bruce": ("Bruce", "male"),
     "victoria": ("Victoria", "female"),
+    "agnes-hq": ("Agnes (high quality)", "female"),
+    "bruce-hq": ("Bruce (high quality)", "male"),
+    "victoria-hq": ("Victoria (high quality)", "female"),
 }
 
 last_request = [0.0]
