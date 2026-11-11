@@ -1203,9 +1203,13 @@ static int write_wav(FILE *f, const float *x, int n)
 	return ferror(f) ? -1 : 0;
 }
 
+#ifndef VOICEDIR
+#define VOICEDIR "/usr/local/share/macintalk"
+#endif
+
 static const char *default_dir(void)
 {
-	static const char *dirs[] = { "/usr/local/share/macintalk", "/usr/share/macintalk",
+	static const char *dirs[] = { VOICEDIR, "/usr/local/share/macintalk", "/usr/share/macintalk",
 		"sources/macintalk", NULL };
 	const char *e = getenv("MACINTALK_VOICES");
 	int i;
