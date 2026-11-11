@@ -1,8 +1,10 @@
 # Voice format
 
 A voice is a folder under `voicedir` (default
-`<astdatadir>/sounds/speaking-clock`). The folder's name is the voice's id,
-the name you pass to `SpeakingClock()`. It holds a `voice.conf` and its clips.
+`<astdatadir>/sounds/speaking-clock` on Asterisk, `<sounds_dir>/speaking-clock`
+on FreeSWITCH). The folder's name is the voice's id, the name you pass to
+`SpeakingClock()` (or FreeSWITCH's `speakingclock`). app_speakingclock and
+mod_speakingclock read the same voices. It holds a `voice.conf` and its clips.
 
 ## Clips
 
@@ -79,7 +81,7 @@ hours=12                ; or 24
 ## Live voices (mode=tts)
 
 A live voice has no number clips. Each announcement's sentence is spoken
-whole, when it is needed, by a synthesiser program on the Asterisk machine
+whole, when it is needed, by a synthesiser program on the Asterisk or FreeSWITCH machine
 (DECtalk, SAM).
 
 ```
@@ -97,7 +99,7 @@ text=At the third stroke, it will be {hour} {minute} {seconds}.
 - **command**: the program to run, split into words like a shell would
   (with `"..."` and `'...'`), but run without one, so the text is always a
   single argument. `{program:name}` becomes `tts_program_name` from
-  speakingclock.conf (else `name`, found on the PATH), `{text}` the text,
+  speakingclock.conf or speakingclock.conf.xml (else `name`, found on the PATH), `{text}` the text,
   and an argument `{out}` a file for it to write the WAV to. Without `{out}`
   the WAV is read from its standard output.
 - **text**: what each announcement says. In words: `{hour}`, `{minute}`

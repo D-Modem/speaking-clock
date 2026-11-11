@@ -3,3 +3,5 @@ asterisk/app_speakingclock.so
 __pycache__/
 synth/macintalk/macintalk
 synth/mssam/mssam
+freeswitch/mod_speakingclock.so
+core/sclock-render

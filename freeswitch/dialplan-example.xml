@@ -1,0 +1,34 @@
+<!-- Speaking clocks for FreeSWITCH's dialplan: put these in a context,
+     e.g. as dialplan/default/00_speakingclock.xml for the default context. -->
+<include>
+  <!-- the UK's TIM: "At the third stroke it will be ..." -->
+  <extension name="speakingclock_tim">
+    <condition field="destination_number" expression="^123$">
+      <action application="speakingclock" data="tim-pat-simmons t(Europe/London)"/>
+    </condition>
+  </extension>
+
+  <!-- Australia's Gordon Gow -->
+  <extension name="speakingclock_gordon_gow">
+    <condition field="destination_number" expression="^1194$">
+      <action application="speakingclock" data="tim-gordon-gow t(Australia/Sydney)"/>
+    </condition>
+  </extension>
+
+  <!-- POPCORN: five minutes, then hang up -->
+  <extension name="speakingclock_popcorn">
+    <condition field="destination_number" expression="^767$">
+      <action application="speakingclock" data="atandt-mike t(America/Los_Angeles)d(300)"/>
+    </condition>
+  </extension>
+
+  <!-- Microsoft Sam, spoken live by synth/mssam.  A key press ends it and
+       the dialplan goes on (the channel variable speakingclock_key holds
+       the key). -->
+  <extension name="speakingclock_sam">
+    <condition field="destination_number" expression="^1236$">
+      <action application="speakingclock" data="live-mssam-sam t(Europe/London)x"/>
+      <action application="hangup"/>
+    </condition>
+  </extension>
+</include>

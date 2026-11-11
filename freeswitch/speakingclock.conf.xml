@@ -1,0 +1,45 @@
+<!-- speakingclock.conf.xml - mod_speakingclock, the speakingclock application
+
+     In the dialplan, for example:
+
+       <extension name="tim">
+         <condition field="destination_number" expression="^123$">
+           <action application="speakingclock" data="tim-pat-simmons t(Europe/London)"/>
+         </condition>
+       </extension>
+
+     "speakingclock voices" lists the voices.  "speakingclock reload" (or
+     reloadxml) rereads this file and the voices. -->
+<configuration name="speakingclock.conf" description="Telephone speaking clock">
+  <settings>
+    <!-- Where the voice folders are.  Default: the speaking-clock folder
+         in FreeSWITCH's sounds directory. -->
+    <!-- <param name="voicedir" value="/usr/share/freeswitch/sounds/speaking-clock"/> -->
+
+    <!-- The voice used when the application is given none. -->
+    <!-- <param name="default_voice" value="tim-pat-simmons"/> -->
+
+    <!-- The time zone used when the t() option is not given, by its name in
+         timezones.conf.xml.  Default: the system's. -->
+    <!-- <param name="timezone" value="Europe/London"/> -->
+
+    <!-- Hang up after this many seconds (0: never).  The d() option
+         overrides it. -->
+    <!-- <param name="maxduration" value="180"/> -->
+
+    <!-- The live DECtalk, SAM and MacInTalk voices run the synthesiser on
+         this machine, with no server.  Default: dectalk, sam and macintalk,
+         found on the PATH.  macintalk is synth/macintalk in this repository
+         (it speaks the MacInTalk 3 and the PlainTalk voices). -->
+    <!-- <param name="tts_program_dectalk" value="/opt/dectalk/say"/> -->
+    <!-- <param name="tts_program_sam" value="/usr/local/bin/sam"/> -->
+    <!-- <param name="tts_program_macintalk" value="/usr/local/bin/macintalk"/> -->
+
+    <!-- The live Microsoft Sam, Mike and Mary voices run synth/mssam
+         (default: mssam, found on the PATH). -->
+    <!-- <param name="tts_program_mssam" value="/usr/local/bin/mssam"/> -->
+
+    <!-- Seconds a synthesiser program may take before it is stopped. -->
+    <!-- <param name="tts_timeout" value="15"/> -->
+  </settings>
+</configuration>
