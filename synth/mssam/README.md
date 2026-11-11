@@ -44,6 +44,8 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
    unit before it, each pitch pulse is blended with the one before (the
    stored pulses are rougher than Sam's speech), the gap between loud
    vowels and quiet consonants is narrowed a little, and a treble lift
-   restores the brightness of the original recordings.
+   restores the brightness of the original recordings. Sam also gets a
+   tone correction, because his units come out darker above 2.5 kHz than
+   his own voice.
 
 docs/mssam-format.md describes the voice data.

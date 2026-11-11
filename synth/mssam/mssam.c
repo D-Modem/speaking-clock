@@ -914,11 +914,65 @@ static void compress(void)
 	free(lev);
 }
 
+/* Sam's units come out darker than his own voice above 2.5 kHz (and a
+ * little thin at the very bottom): this correction, measured against his
+ * recordings of the clock's phrases, puts it back.  dB at each frequency;
+ * Mike and Mary need none. */
+static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
+static const double eq_sam[] = { 4.3, 0.4, -0.4, 0, 0.2, 1.1, 4.3, 3.6, 2.9, 2.0, 4.5, 6.1, 5.9, 3.9 };
+static const double *eq;
+
+static void equalise(void)
+{
+	enum { TAPS = 129, NF = 256 };
+	double h[TAPS], g[NF + 1], *y;
+	int ne = sizeof(eq_hz) / sizeof(eq_hz[0]), k, j;
+	size_t i;
+
+	if (!eq || !nout)
+		return;
+	for (k = 0; k <= NF; k++) {
+		double f = (double)k * V.rate / 2 / NF, db;
+		if (f <= eq_hz[0])
+			db = eq[0];
+		else if (f >= eq_hz[ne - 1])
+			db = eq[ne - 1];
+		else {
+			for (j = 1; eq_hz[j] < f; j++)
+				;
+			db = eq[j - 1] + (eq[j] - eq[j - 1]) *
+				log(f / eq_hz[j - 1]) / log(eq_hz[j] / eq_hz[j - 1]);
+		}
+		g[k] = pow(10, db / 20);
+	}
+	/* linear phase: the inverse transform of the gains, windowed */
+	for (j = 0; j < TAPS; j++) {
+		double n = j - (TAPS - 1) / 2.0, v = g[0];
+		for (k = 1; k <= NF; k++)
+			v += 2 * g[k] * cos(M_PI * k * n / NF) * (k == NF ? 0.5 : 1);
+		h[j] = v / (2 * NF) * (0.5 - 0.5 * cos(2 * M_PI * (j + 0.5) / TAPS));
+	}
+	y = xmalloc(nout * sizeof(double));
+	for (i = 0; i < nout; i++) {
+		double v = 0;
+		for (j = 0; j < TAPS; j++) {
+			long x = (long)i + (TAPS - 1) / 2 - j;
+			if (x >= 0 && x < (long)nout)
+				v += h[j] * out[x];
+		}
+		y[i] = v;
+	}
+	for (i = 0; i < nout; i++)
+		out[i] = y[i];
+	free(y);
+}
+
 static void write_wav(FILE *f)
 {
 	double peak = 1e-9;
 	size_t i;
 
+	equalise();
 	compress();
 	for (i = 0; i < nout; i++)
 		if (fabs(out[i]) > peak)
@@ -984,6 +1038,8 @@ int main(int argc, char **argv)
 	if (strcmp(voice, "sam"))
 		rate /= 0.82;
 
+	if (!strcmp(voice, "sam"))
+		eq = eq_sam;
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
 	snprintf(path, sizeof(path), "%s/%s.tree", dir, voice);
