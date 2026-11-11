@@ -701,24 +701,46 @@ static void emit(double v)
 	out[nout++] = v;
 }
 
+/* Each pitch pulse is blended with the ones before: the stored pulses
+ * vary more from one to the next than Sam's own speech does, which sounds
+ * rough.  Only the harmonics below SMOOTH_HZ are blended; above it his
+ * voice is breathy, and blending there makes it buzz. */
+static const double SMOOTH = 0.7, SMOOTH_HZ = 2000;
+static double sre[1024], sim[1024];
+static int have_per;
+
 /* One stored period (V.period points) at its real length n.  It is one
  * period of a periodic signal, so it is resampled through its spectrum,
  * keeping the harmonics that fit below the new Nyquist frequency. */
 
 static void stretch(const float *p, double *e, int n)
 {
-	static double re[1024], im[1024];
-	int N = V.period, h = n / 2 < N / 2 ? n / 2 : N / 2, k, j;
+	static double cre[1024], cim[1024], re[1024], im[1024];
+	int N = V.period, H = N / 2, h = n / 2 < H ? n / 2 : H, k, j;
 
-	for (k = 0; k <= h; k++) {
+	for (k = 0; k <= H; k++) {
 		double a = 0, b = 0;
 		for (j = 0; j < N; j++) {
 			double w = 2 * M_PI * k * j / N;
 			a += p[j] * cos(w);
 			b -= p[j] * sin(w);
 		}
-		re[k] = a;
-		im[k] = b;
+		cre[k] = a;
+		cim[k] = b;
+		if (have_per) {
+			sre[k] = SMOOTH * sre[k] + (1 - SMOOTH) * a;
+			sim[k] = SMOOTH * sim[k] + (1 - SMOOTH) * b;
+		} else {
+			sre[k] = a;
+			sim[k] = b;
+		}
+	}
+	have_per = 1;
+	for (k = 0; k <= h; k++) {
+		double hz = (double)k * V.rate / n, m = hz < SMOOTH_HZ ? 1 :
+			hz < 1.5 * SMOOTH_HZ ? 1 - (hz - SMOOTH_HZ) / (0.5 * SMOOTH_HZ) : 0;
+		re[k] = m * sre[k] + (1 - m) * cre[k];
+		im[k] = m * sim[k] + (1 - m) * cim[k];
 	}
 	for (j = 0; j < n; j++) {
 		double v = re[0];
@@ -733,13 +755,10 @@ static void stretch(const float *p, double *e, int n)
 /* The loudness of a unit's first frames leans toward the end of the unit
  * before, so that joins do not jump. */
 static const double JOIN = 0.6, LIFTC = 0.65;
-/* Each pitch pulse is blended with the one before: the stored pulses vary
- * more from one to the next than Sam's own speech does, which sounds rough. */
-static const double SMOOTH = 0.7;
 /* Sam's hiss and frication come out quieter than in his recordings. */
 static double FRIC = 1;
-static float sper[1024];
-static int have_per;
+/* He also says them quicker than they were recorded, against his vowels. */
+static double hiss_rate = 1;
 static double last_gain;
 
 /* A formant postfilter, as speech codecs use: A(z/PF_NUM) / A(z/PF_DEN)
@@ -874,14 +893,14 @@ static void render(double rate, double pitch)
 		/* new timing: step through the unit's frames at the new rate */
 		src = xmalloc((n + 1) * sizeof(double));
 		for (k = 0; k < n; k++)
-			src[k + 1] = src[k] + f[k].len;
-		total = src[n] / rate;
+			src[k + 1] = src[k] + f[k].len / (rate * (f[k].voiced ? 1 : hiss_rate));
+		total = src[n];
 		for (t = 0; t < total;) {
 			struct frame *s;
 			int len, L0, sf;
 			double g, sum = 0;
 
-			for (k = 0; k < n - 1 && src[k + 1] <= t * rate; k++)
+			for (k = 0; k < n - 1 && src[k + 1] <= t; k++)
 				;
 			s = &f[k];
 			sf = k;
@@ -901,14 +920,7 @@ static void render(double rate, double pitch)
 				/* the stored period is scaled to V.period points:
 				 * stretch it back to its recorded length, then cut
 				 * or pad it to the new period */
-				if (SMOOTH > 0 && have_per) {
-					for (k = 0; k < V.period; k++)
-						sper[k] = SMOOTH * sper[k] + (1 - SMOOTH) * s->period[k];
-				} else {
-					memcpy(sper, s->period, V.period * sizeof(float));
-				}
-				have_per = 1;
-				stretch(sper, e, L0);
+				stretch(s->period, e, L0);
 				for (k = 0; k < L0; k++)
 					sum += e[k] * e[k];
 				for (; k < len; k++)
@@ -1009,13 +1021,12 @@ static void compress(void)
 	free(lev);
 }
 
-/* Sam's vowels come out with too little of the 2.5-4 kHz range that makes
- * words clear (and a little thin at the very bottom): this correction,
- * measured against his recordings of the clock's phrases, puts it back
- * without adding hiss above it.  dB at each frequency; Mike and Mary need
- * none. */
+/* Sam's tone, fitted frame by frame against his recordings of the clock's
+ * phrases (each frame matched to the same moment in his): more of his low
+ * fundamental and of 1-2 kHz, less above 2.5 kHz.  dB at each frequency;
+ * Mike and Mary need none. */
 static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 4.3, 0.4, -0.6, -0.5, 0.5, 3.0, 6.5, 6.0, 3.5, -1.0, 0, 1.5, 1.5, 0 };
+static const double eq_sam[] = { 7.3, -0.3, -1.9, 0, 1.8, -0.9, -1.7, -2.1, -2.6, -3.7, -4.2, -3.6, -3.5, -3.0 };
 static const double *eq;
 
 static void equalise(void)
@@ -1143,6 +1154,7 @@ int main(int argc, char **argv)
 		PF_NUM = 0.5;
 		PF_DEN = 0.75;
 		FRIC = 1.35;
+		hiss_rate = 1.3;
 	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
