@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Checks app_speakingclock in a running Asterisk, through its CLI.
+"""Checks app_speakingclock in a running Asterisk, or mod_speakingclock in a
+running FreeSWITCH (PBX=freeswitch), through its CLI.
 
   - For the tim voices, the third pip starts exactly on the second it
     announces (to the sample).
@@ -11,8 +12,9 @@
     synthesiser, tts_program_* in speakingclock.conf) and its made-up third pip
     lands on the second.  Live voices are left out otherwise.
 
-Run as a user that may use `asterisk -rx`, with the module loaded and the
-voices installed:  test/render_test.py
+Run as a user that may use `asterisk -rx` (or `fs_cli -x`), with the module
+loaded and the voices installed:  test/render_test.py
+(PBX=freeswitch test/render_test.py for FreeSWITCH).
 """
 import os
 import struct
@@ -31,9 +33,15 @@ def ok(cond, what):
         print("FAIL:", what)
 
 
+FREESWITCH = os.environ.get("PBX", "asterisk").lower() == "freeswitch"
+
+
 def cli(cmd):
-    return subprocess.run(["asterisk", "-rx", cmd], capture_output=True,
-                          text=True, check=True).stdout
+    if FREESWITCH:
+        argv = ["fs_cli", "-x", cmd.replace("speakingclock show voices", "speakingclock voices")]
+    else:
+        argv = ["asterisk", "-rx", cmd]
+    return subprocess.run(argv, capture_output=True, text=True, check=True).stdout
 
 
 def render(voice, start, seconds, zone="UTC"):
@@ -41,7 +49,7 @@ def render(voice, start, seconds, zone="UTC"):
         path = f.name
     try:
         out = cli("speakingclock render %s %d %d %s %s" % (voice, start, seconds, path, zone))
-        if "Wrote" not in out:
+        if "wrote" not in out.lower():
             raise RuntimeError(out.strip())
         with open(path, "rb") as f:
             d = f.read()
@@ -116,7 +124,10 @@ if tts:
             marks.append(list(a[second:second + 80]) == tone)
     ok(marks and all(marks), "%s: third pip on the second %s" % (tts, marks))
     ok(max(abs(x) for x in a[:3 * RATE]) > 1000, "%s: no speech" % tts)
-ok("Asterisk" in cli("core show version"), "Asterisk still up")
+if FREESWITCH:
+    ok("FreeSWITCH" in cli("version"), "FreeSWITCH still up")
+else:
+    ok("Asterisk" in cli("core show version"), "Asterisk still up")
 
 print("%s" % ("all passed" if not failed else "%d failed" % failed))
 sys.exit(1 if failed else 0)

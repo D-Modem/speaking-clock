@@ -1,6 +1,6 @@
 # speaking-clock
 
-A telephone speaking clock for Asterisk and FreePBX. Its voices include the
+A telephone speaking clock for Asterisk, FreePBX and FreeSWITCH. Its voices include the
 UK's TIM (Pat Simmons), Australia's Gordon Gow, the whole Steve's Talking
 Clock library of talking clocks and watches, and classic speech synthesisers
 (Microsoft Sam and the other SAPI4 voices, DECtalk, SAM, MacInTalk, PlainTalk), each
@@ -10,6 +10,10 @@ able to give the time to the second.
   application, written in C.
 - **`freepbx/speakingclock/`**: a FreePBX module. Clocks are destinations,
   with optional numbers to dial.
+- **`freeswitch/`**: `mod_speakingclock`, the `speakingclock` dialplan
+  application for FreeSWITCH, the same clock as `SpeakingClock()`.
+- **`core/`**: the clock itself, with no PBX in it (mod_speakingclock is
+  built on it), and `sclock-render`, which writes what a caller would hear.
 - **`voices/`**: the voices ([INDEX](voices/INDEX.md), [format](docs/voice-format.md)).
 - **`tools/`**: fetch the original recordings and rebuild `voices/`.
 
@@ -27,7 +31,8 @@ against the system clock (so keep it on NTP), and the module checks the
 clock every second, jumping back to it if it drifts by more than 20 ms.
 Announcements are not queued with `Playback()`, so the clock doesn't drift
 however long a call is up. Measured on a test call, Pat Simmons' third pip
-landed within 10 ms of the second.
+landed within 10 ms of the second. mod_speakingclock does the same on
+FreeSWITCH.
 
 ## Asterisk
 
@@ -97,6 +102,53 @@ voice data (`cd synth/mssam && make && make voices && sudo make install`
 builds it and fetches the data). Its setting is `tts_program_mssam`.
 
 See [docs/voice-format.md](docs/voice-format.md#live-voices-modetts).
+
+## FreeSWITCH
+
+```sh
+cd freeswitch
+make                 # needs FreeSWITCH's headers (libfreeswitch-dev, or a source install)
+sudo make install    # module, autoload_configs/speakingclock.conf.xml, voices into sounds/speaking-clock
+fs_cli -x 'load mod_speakingclock'
+```
+
+Add `<load module="mod_speakingclock"/>` to `autoload_configs/modules.conf.xml`
+to load it at start. In the dialplan
+([dialplan-example.xml](freeswitch/dialplan-example.xml)):
+
+```xml
+<extension name="speakingclock_tim">
+  <condition field="destination_number" expression="^123$">
+    <action application="speakingclock" data="tim-pat-simmons t(Europe/London)"/>
+  </condition>
+</extension>
+```
+
+`speakingclock [voice] [options]` takes the same voices and options as
+`SpeakingClock()` above (`t(zone)`, `d(seconds)`, `h`, `p(seconds)`,
+`s(a+b+c)`, `w`, `x`), written after the voice with a space. With `x`, the
+key the caller pressed is left in the channel variable `speakingclock_key`.
+Time zones are FreeSWITCH's own, from `timezones.conf.xml`. The live voices
+work the same way: set `tts_program_*` in
+[speakingclock.conf.xml](freeswitch/speakingclock.conf.xml).
+
+The module sends the clock in 8 kHz signed linear frames the length of the
+call's, and FreeSWITCH converts them to the call's codec and rate. Each
+frame comes from the clock's position against the system clock, so the
+time mark lands on the second whatever the codec.
+
+API (fs_cli):
+
+- `speakingclock voices` lists the voices.
+- `speakingclock render <voice> <unix time> <seconds> <file.sln> [zone]`
+  writes what a caller would hear, as 8 kHz signed linear.
+- `speakingclock reload` (or `reloadxml`) rereads the config and the voices.
+
+`PBX=freeswitch test/render_test.py` runs the timing test against it.
+
+Without a PBX, `cd core && make` builds `sclock-render`, which does the same
+as `speakingclock render`:
+`./sclock-render -v ../voices tim-pat-simmons 1762791295 30 out.sln Europe/London`.
 
 ## FreePBX
 
