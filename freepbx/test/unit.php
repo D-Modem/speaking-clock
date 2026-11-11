@@ -121,6 +121,10 @@ ok(!isset($v['INDEX.md']), 'files are not voices');
 ok(!Clock::validateSettings(Clock::normalizeSettings(['voicedir' => '/x', 'default_voice' => 'a', 'timezone' => 'Europe/London', 'maxduration' => '0'])), 'good settings pass');
 $e = Clock::validateSettings(Clock::normalizeSettings(['voicedir' => 'rel', 'default_voice' => '../x', 'timezone' => 'Mars/Base', 'maxduration' => '-1']));
 ok(isset($e['voicedir'], $e['default_voice'], $e['timezone'], $e['maxduration']), 'bad settings caught');
+$e = Clock::validateSettings(Clock::normalizeSettings(['voicedir' => '/x', 'default_voice' => 'a', 'tts_program_sam' => 'sam; rm -rf /']));
+ok(isset($e['tts_program_sam']), 'bad tts_program caught');
+$t = Clock::normalizeSettings(['voicedir' => '/x', 'default_voice' => 'a', 'tts_program_dectalk' => '/opt/dectalk/say']);
+ok(!Clock::validateSettings($t) && strpos(Clock::renderConf($t), "tts_program_dectalk=/opt/dectalk/say\n") !== false, 'dectalk program written');
 
 /* clock checks */
 $good = Clock::normalizeClock(['name' => 'tim', 'voice' => 'tim-pat-simmons', 'number' => '123',

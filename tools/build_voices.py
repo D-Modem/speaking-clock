@@ -282,19 +282,21 @@ def build_tim(src, out):
 
 def main():
     src, out = sys.argv[1], sys.argv[2]
-    if os.path.exists(out):
-        shutil.rmtree(out)
-    os.makedirs(out)
+    os.makedirs(out, exist_ok=True)
+    # start again from nothing, but keep the synthesised voices
+    # (tools/synth_voices.py), whose voice.conf names an engine
+    for d in os.listdir(out):
+        conf = os.path.join(out, d, "voice.conf")
+        if os.path.isdir(os.path.join(out, d)) and \
+                "\nengine=" not in (open(conf).read() if os.path.exists(conf) else ""):
+            shutil.rmtree(os.path.join(out, d))
     build_tim(src, out)
     build_garry(src, out)
     build_steve(src, out)
-    with open(os.path.join(out, "INDEX.md"), "w") as f:
-        f.write("# Voices\n\nMade by tools/build_voices.py. Every recording "
-                "belongs to its original owner (../NOTICE.md).\n\n")
-        f.write("| id | name | mode | from |\n|---|---|---|---|\n")
-        for v in sorted(voices):
-            f.write("| `%s` | %s | %s | %s |\n" % v)
-    print("%d voices" % len(voices))
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from voice_index import write_index
+    write_index(out)
+    print("%d voices built" % len(voices))
 
 
 if __name__ == "__main__":
