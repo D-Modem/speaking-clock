@@ -69,6 +69,9 @@ Written by tools/voice_index.py. Every recording belongs to its original owner (
 | `live-macintalk-trinoids` | MacInTalk Trinoids, live | tts | macintalk synthesiser |
 | `live-macintalk-whisper` | MacInTalk Whisper, live | tts | macintalk synthesiser |
 | `live-macintalk-zarvox` | MacInTalk Zarvox, live | tts | macintalk synthesiser |
+| `live-mssam-mary` | Microsoft Mary, live | tts | mssam synthesiser |
+| `live-mssam-mike` | Microsoft Mike, live | tts | mssam synthesiser |
+| `live-mssam-sam` | Microsoft Sam, live | tts | mssam synthesiser |
 | `live-sam-elf` | SAM Elf, live | tts | sam synthesiser |
 | `live-sam-extra-terrestrial` | SAM Extra-Terrestrial, live | tts | sam synthesiser |
 | `live-sam-little-old-lady` | SAM Little Old Lady, live | tts | sam synthesiser |

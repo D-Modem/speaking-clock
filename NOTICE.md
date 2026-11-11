@@ -77,6 +77,17 @@ voices, belong to their owners:
   voice is TruVoice Adult Male #2 at the pitch and speed BonziBUDDY used.
   The live voices (`live-*`) hold no recordings: each sentence is spoken
   when it is needed, by DECtalk or SAM on the Asterisk machine.
+- **Microsoft Sam, Mike and Mary, live** (`live-mssam-*`): no recordings.
+  Each sentence is spoken on the Asterisk machine by `synth/mssam`, our own
+  synthesiser (GPL-2.0-or-later, like the rest of this repository), which
+  reads the voice data of Microsoft's Speech API 4 voices. That data is
+  Microsoft's and is not in this repository: `tools/fetch-mssam.py`
+  downloads Microsoft's package (msttsl.exe) from the Internet Archive and
+  keeps only the voice data, none of Microsoft's programs. Microsoft is a
+  trademark of Microsoft Corporation. The word list in
+  `synth/mssam/lexicon.h`, and the `cmudict.dict` the fetch script
+  downloads, are from the CMU Pronouncing Dictionary, © 1993-2015 Carnegie
+  Mellon University, under its BSD-style licence (in `lexicon.h`).
 - **DECtalk** (`dectalk-*`): DECtalk 4.x, made by Digital Equipment
   Corporation and later Fonix. Built from the source at
   <https://github.com/dectalk/dectalk>.

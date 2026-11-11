@@ -1,0 +1,42 @@
+# mssam
+
+Our own synthesiser for the Microsoft Sam, Mike and Mary voices (Microsoft
+Speech API 4, 1998). It reads the voices' data and speaks with it. No
+Microsoft code is used or run, and none of Microsoft's files are in this
+repository: `tools/fetch-mssam.py` downloads Microsoft's package at build
+time and keeps only the voice data.
+
+```sh
+make                 # build mssam
+make voices          # fetch the voice data into ../../sources/mssam (8 MB download, needs cabextract or 7z)
+make test            # speak a sentence with each voice
+sudo make install    # /usr/local/bin/mssam and /usr/local/share/mssam
+```
+
+```
+mssam [-d DIR] [-v sam|mike|mary] [-r RATE] [-p PITCH] [-o OUT.wav] TEXT...
+```
+
+`-d` is the folder with the voice data (default `/usr/local/share/mssam`,
+or `$MSSAM_DIR`). `-r` and `-p` multiply the speed and pitch. Without `-o`
+the WAV (22050 Hz, 16-bit mono) goes to standard output.
+
+## How it speaks
+
+1. The text becomes words (numbers and times like `11:05` are spelled out,
+   `a.m.` is two letters), and the words become sounds from the CMU
+   Pronouncing Dictionary: the clock's own words are built in
+   (`lexicon.h`), and `cmudict.dict` in the voice folder covers the rest.
+   Unknown words are spelled.
+2. Each sound gets one of the voice's recorded units. The voice has a
+   decision tree for each sound, whose questions are about the sounds
+   either side and where the sound is in its word; the leaf it reaches is
+   the unit.
+3. Each unit is a run of frames: a 20th-order spectrum (line spectral
+   frequencies) and a gain, with a pitch pulse for voiced frames and noise
+   for the others. The frames are played through the filter at a new pace
+   and with a new pitch: each vowel follows a tone from the voice's own
+   tone table (accented, plain, or falling at the end of a phrase), and the
+   sounds between vowels glide from one to the next.
+
+docs/mssam-format.md describes the voice data.

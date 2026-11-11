@@ -87,6 +87,11 @@ tts_program_sam=/usr/local/bin/sam
 tts_program_macintalk=/usr/local/bin/macintalk
 ```
 
+The `live-mssam-*` voices (Microsoft Sam, Mike and Mary) run
+[synth/mssam](synth/mssam), our own synthesiser, which reads Microsoft's
+voice data (`cd synth/mssam && make && make voices && sudo make install`
+builds it and fetches the data). Its setting is `tts_program_mssam`.
+
 See [docs/voice-format.md](docs/voice-format.md#live-voices-modetts).
 
 ## FreePBX
@@ -115,6 +120,7 @@ tools/synth_voices.py --list                        # the voices it knows
 tools/synth_voices.py voices sapi4:microsoft-sam    # SAPI4, via tetyys.com
 DECTALK_SAY=~/dectalk/dist/say tools/synth_voices.py voices dectalk:paul
 SAM=~/SAM/sam tools/synth_voices.py voices sam:sam
+MSSAM=synth/mssam/mssam tools/synth_voices.py --live voices mssam:sam  # live-mssam-sam
 tools/synth_voices.py voices mac:Fred                # MacInTalk, on a Mac
 tools/synth_voices.py voices mac:Victoria            # PlainTalk, on a Mac
 tools/synth_voices.py voices macintalk:fred          # MacInTalk 3, synth/macintalk

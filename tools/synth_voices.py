@@ -12,9 +12,9 @@ Usage: tools/synth_voices.py OUT VOICE...    (OUT is normally ./voices)
 
 --live writes a live voice instead (mode=tts, live-<engine>-<voice>): no
 clips, the module runs the synthesiser on the Asterisk machine for each
-sentence as it is needed (dectalk, sam and macintalk only;
-tts_program_dectalk, tts_program_sam and tts_program_macintalk in
-speakingclock.conf say where they are).
+sentence as it is needed (dectalk, sam, mssam and macintalk only;
+tts_program_dectalk, tts_program_sam, tts_program_mssam and
+tts_program_macintalk in speakingclock.conf say where they are).
 
 Engines (a VOICE is engine:name, see --list):
   sapi4    Microsoft Speech API 4 voices (Microsoft Sam, Mike, Mary,
@@ -25,6 +25,9 @@ Engines (a VOICE is engine:name, see --list):
            branch).  $DECTALK_SAY is its `say` program.
   sam      Software Automatic Mouth (C64, 1982), the C port at
            https://github.com/s-macke/SAM.  $SAM is its `sam` program.
+  mssam    Microsoft Sam, Mike and Mary, spoken by our own synthesiser
+           (synth/mssam) from the voice data that tools/fetch-mssam.py
+           fetches.  $MSSAM is its `mssam` program.
   mac      MacInTalk / PlainTalk voices, with macOS's own `say` (run this
            on a Mac).
   macintalk  The MacInTalk 3 voices (Fred, Ralph, Kathy, Zarvox ...) spoken
@@ -210,6 +213,18 @@ def sam(vid, text, out):
                    check=True, stdout=subprocess.DEVNULL)
 
 
+MSSAM = {
+    "sam": ("Microsoft Sam", "Microsoft Speech API 4 voice Sam"),
+    "mike": ("Microsoft Mike", "Microsoft Speech API 4 voice Mike"),
+    "mary": ("Microsoft Mary", "Microsoft Speech API 4 voice Mary"),
+}
+
+
+def mssam(vid, text, out):
+    prog = os.environ.get("MSSAM", "mssam")
+    subprocess.run([prog, "-v", vid, "-o", out, text], check=True)
+
+
 def mac_check(vid):
     have = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
     if not any(line.split("  ")[0].strip() == vid for line in have.splitlines()):
@@ -239,6 +254,9 @@ ENGINES = {
                 "DECtalk (Digital Equipment Corp.), https://github.com/dectalk/dectalk"),
     "sam": (sam, SAM, lambda v: (SAM[v][4], "Software Automatic Mouth (Commodore 64, 1982)"),
             "SAM, Don't Ask Software (now SoftVoice, Inc.), C port https://github.com/s-macke/SAM"),
+    "mssam": (mssam, MSSAM, lambda v: (MSSAM[v][0], "%s, by our own synthesiser" % MSSAM[v][1]),
+              "synth/mssam (this repository, clean-room) reading Microsoft's Speech API 4 voice data "
+              "(msttsl.exe), fetched by tools/fetch-mssam.py"),
     "mac": (mac, MAC, lambda v: ("%s %s" % (MAC[v], v),
                                  "Apple PlainTalk (MacinTalk Pro) voice" if MAC[v] == "PlainTalk"
                                  else "Apple MacInTalk 3 voice"),
@@ -288,6 +306,9 @@ def build_live(out_dir, engine, vid):
     if engine == "dectalk":
         how = 'command={program:dectalk} -fo {out} -a "[:%s] {text}"' % DECTALK[vid][0]
         by = "DECtalk's say, run here (tts_program_dectalk)"
+    elif engine == "mssam":
+        how = 'command={program:mssam} -v %s -o {out} "{text}"' % vid
+        by = "synth/mssam, run here (tts_program_mssam)"
     elif engine == "macintalk":
         how = 'command={program:macintalk} -v %s -o {out} "{text}"' % vid
         by = "synth/macintalk, run here (tts_program_macintalk)"
@@ -296,10 +317,13 @@ def build_live(out_dir, engine, vid):
         how = ("command={program:sam} -wav {out} -speed %d -pitch %d -mouth %d -throat %d \"{text}\""
                % (speed, pitch, mouth, throat))
         by = "SAM, run here (tts_program_sam)"
-    owners = "The synthesiser belongs to its owners"
-    if engine == "macintalk":
-        owners = ("The synthesiser is ours; the voice data it reads is Apple's and is\n"
-                  "; not in this repository (tools/fetch-macintalk.py downloads it)")
+    owners = "; The synthesiser belongs to its owners; see NOTICE.md."
+    if engine == "mssam":
+        owners = ("; The synthesiser is ours; the voice data it reads is Microsoft's and is\n"
+                  "; not in this repository (tools/fetch-mssam.py downloads it); see NOTICE.md.")
+    elif engine == "macintalk":
+        owners = ("; The synthesiser is ours; the voice data it reads is Apple's and is\n"
+                  "; not in this repository (tools/fetch-macintalk.py downloads it); see NOTICE.md.")
     text = "At the third stroke, it will be {hour} {minute} {seconds}."
     d = os.path.join(out_dir, "live-%s-%s" % (engine, vid.lower().replace(" ", "-")))
     os.makedirs(d, exist_ok=True)
@@ -307,7 +331,7 @@ def build_live(out_dir, engine, vid):
         f.write("; Live voice for app_speakingclock (docs/voice-format.md), made by\n"
                 "; tools/synth_voices.py --live %s:%s.  Each sentence is spoken when\n"
                 "; it is needed, by %s.\n"
-                "; %s; see NOTICE.md.\n\n"
+                "%s\n\n"
                 "[voice]\nname=%s, live\ndescription=%s, spoken live\n"
                 "mode=tts\nsequence=speech+pips\nperiod=10\n\n[tts]\n%s\ntext=%s\n"
                 "\n[source]\nengine=%s\nvoice=%s\nsynthesiser=%s\n"
@@ -320,8 +344,8 @@ def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--live":
         for spec in sys.argv[3:]:
             engine, _, vid = spec.partition(":")
-            if engine not in ("dectalk", "sam", "macintalk") or vid not in ENGINES[engine][1]:
-                sys.exit("--live takes dectalk, sam and macintalk voices (see --list)")
+            if engine not in ("dectalk", "sam", "mssam", "macintalk") or vid not in ENGINES[engine][1]:
+                sys.exit("--live takes dectalk, sam, mssam and macintalk voices (see --list)")
             build_live(sys.argv[2], engine, vid)
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from voice_index import write_index
