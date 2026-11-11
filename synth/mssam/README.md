@@ -50,8 +50,9 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
    (tone correction, hiss level and pace, how much the pitch pulses are
    smoothed and flattened, the formant postfilter, the levelling) were
    fitted automatically to 30 of his own recordings, scoring each sound's
-   tone, its loudness over time, its length and how steady its pitch
-   pulses are, and checked on 10 more.
+   tone, its loudness over time, its length, how steady its pitch
+   pulses are and how sharply its formants stand out, and checked on 10
+   more.
    When a phrase pauses, the filter rings out instead of stopping dead.
 
 docs/mssam-format.md describes the voice data.

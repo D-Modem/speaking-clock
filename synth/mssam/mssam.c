@@ -1079,7 +1079,7 @@ static void compress(void)
  * overall brightness, which the fit alone left short.  dB at each frequency;
  * Mike and Mary need none. */
 static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 5.55, 10.7, 4.1, 8.0, 6.55, 6.6, 1.6, 5.4, 4.3, 2.2, 1.3, 2.9, -1.1, 1.7 };
+static const double eq_sam[] = { 0.05, 11.45, 1.1, 7.25, 9.8, 6.85, 2.6, 6.9, 4.3, 3.2, 1.3, 2.9, -3.1, -0.3 };
 static const double *eq;
 
 static void equalise(void)
@@ -1162,7 +1162,7 @@ static void usage(void)
 
 /* Sam's pace against his units' own: a little quicker than they were
  * recorded.  Mike and Mary keep theirs. */
-#define SAM_PACE 0.925
+#define SAM_PACE 0.9
 
 int main(int argc, char **argv)
 {
@@ -1205,18 +1205,19 @@ int main(int argc, char **argv)
 	if (!strcmp(voice, "sam")) {
 		/* fitted to 30 of his recordings (and checked on 10 more):
 		 * each sound's tone, its loudness over time, its length, and
-		 * how steady its pitch pulses are from one to the next */
+		 * how steady its pitch pulses are from one to the next, and how
+		 * sharply its vowels' formants stand out */
 		eq = eq_sam;
-		PF_NUM = 0.7375;
-		PF_DEN = 0.75;
-		FRIC = 7.3;
-		hiss_rate = 1.3;
+		PF_NUM = 0.7125;
+		PF_DEN = 0.87;
+		FRIC = 5.2;
+		hiss_rate = 1.425;
 		FLAT = 1;
 		SMOOTH = 0.95;
-		SMOOTH_HZ = 4800;
+		SMOOTH_HZ = 4200;
 		LIFTC = 0.375;
-		JOIN = 0.175;
-		COMPRESS = 0.225;
+		JOIN = 0.25;
+		COMPRESS = 0.1375;
 	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
