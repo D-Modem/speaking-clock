@@ -714,13 +714,71 @@ static void stretch(const float *p, double *e, int n)
 
 /* The loudness of a unit's first frames leans toward the end of the unit
  * before, so that joins do not jump. */
-static const double JOIN = 0.6;
+static const double JOIN = 0.6, LIFTC = 0.65;
 /* Each pitch pulse is blended with the one before: the stored pulses vary
  * more from one to the next than Sam's own speech does, which sounds rough. */
 static const double SMOOTH = 0.7;
 static float sper[1024];
 static int have_per;
 static double last_gain;
+
+/* A formant postfilter, as speech codecs use: A(z/PF_NUM) / A(z/PF_DEN)
+ * deepens the valleys between the formants, where the coded excitation
+ * leaves a haze that sounds muffled and rough.  Mike and Mary are clear
+ * without it. */
+static double PF_NUM, PF_DEN;	/* Sam only: 0.5 and 0.75 */
+static double pf_x[MAXORDER], pf_y[MAXORDER], prev_y, pf_tilt, pf_last;
+static int pf_n;
+
+/* The postfilter also tilts the spectrum down; as in G.729, a first-order
+ * filter set from its impulse response takes the tilt back out. */
+static void pf_retilt(const double *a)
+{
+	double h[48] = { 1 }, r0 = 0, r1 = 0;
+	int n, j;
+
+	for (n = 0; n < 48; n++) {
+		double gn = 1, gd = 1, v = n == 0;
+		for (j = 0; j < ORDER && j < n; j++) {
+			gn *= PF_NUM;
+			gd *= PF_DEN;
+			v += a[j + 1] * gn * (n - j - 1 == 0) - a[j + 1] * gd * h[n - j - 1];
+		}
+		h[n] = v;
+	}
+	for (n = 0; n < 48; n++) {
+		r0 += h[n] * h[n];
+		if (n + 1 < 48)
+			r1 += h[n] * h[n + 1];
+	}
+	pf_tilt = r1 / (r0 + 1e-12);
+}
+
+static void post(const double *a, double y)
+{
+	double v = y, gn = 1, gd = 1, t;
+	int j;
+
+	if (pf_n++ % 32 == 0)
+		pf_retilt(a);
+
+	for (j = 0; j < ORDER; j++) {
+		gn *= PF_NUM;
+		gd *= PF_DEN;
+		v += a[j + 1] * gn * pf_x[j] - a[j + 1] * gd * pf_y[j];
+	}
+	memmove(pf_x + 1, pf_x, (ORDER - 1) * sizeof(double));
+	pf_x[0] = y;
+	memmove(pf_y + 1, pf_y, (ORDER - 1) * sizeof(double));
+	pf_y[0] = v;
+	t = v - pf_tilt * pf_last;
+	pf_last = v;
+	v = t;
+	/* the voices' spectra lack the treble of the recordings
+	 * (about 10 dB above 3 kHz); this lift matches it */
+	emit(v - LIFTC * prev_y);
+	prev_y = v;
+}
 
 static double gain_at(double g, int k)
 {
@@ -734,10 +792,10 @@ static void render(double rate, double pitch)
 {
 	/* the voice's own pitch against Sam's (plain syllables: 112 Hz) */
 	double vscale = V.tone[T_PLAIN][0] / 112.0;
-	static double mem[MAXORDER], prev_y;
+	static double mem[MAXORDER];
 	static float last[MAXORDER];
 	static int have_last;
-	double a[MAXORDER + 1], *e = NULL;
+	double a[MAXORDER + 1] = { 1 }, *e = NULL;
 	int i, j, k, ne = 0;
 
 	for (i = 0; i < nsnd; i++) {
@@ -746,9 +804,21 @@ static void render(double rate, double pitch)
 		int n, l, r, unit, prev, next;
 
 		if (snd[i].pause) {
-			for (k = 0; k < snd[i].pause * V.rate / 1000; k++)
-				emit(0);
+			/* the filter rings out into the pause instead of being
+			 * cut off, which clicks */
+			for (k = 0; k < snd[i].pause * V.rate / 1000; k++) {
+				double y = 0;
+				for (j = 0; j < ORDER; j++)
+					y -= a[j + 1] * mem[j];
+				if (k > 200)
+					y *= k < 1200 ? 1 - (k - 200) / 1000.0 : 0;
+				memmove(mem + 1, mem, (ORDER - 1) * sizeof(double));
+				mem[0] = y;
+				post(a, y);
+			}
 			memset(mem, 0, sizeof(mem));
+			memset(pf_x, 0, sizeof(pf_x));
+			memset(pf_y, 0, sizeof(pf_y));
 			prev_y = 0;
 			have_last = 0;
 			last_gain = 0;
@@ -823,6 +893,13 @@ static void render(double rate, double pitch)
 					sum += e[k] * e[k];
 				for (; k < len; k++)
 					e[k] = 0;
+				/* a shortened period fades out over its last eighth
+				 * instead of stopping dead, which crackles */
+				if (len < L0) {
+					int fade = len / 8 + 1;
+					for (k = len - fade; k < len; k++)
+						e[k] *= (double)(len - k) / fade;
+				}
 				g = gain_at(s->gain, sf) / (sqrt(sum / L0) + 1e-9);
 			} else {
 				have_per = 0;
@@ -851,10 +928,7 @@ static void render(double rate, double pitch)
 					y -= a[j + 1] * mem[j];
 				memmove(mem + 1, mem, (ORDER - 1) * sizeof(double));
 				mem[0] = y;
-				/* the voices' spectra lack the treble of the recordings
-				 * (about 10 dB above 3 kHz); this lift matches it */
-				emit(y - 0.65 * prev_y);
-				prev_y = y;
+				post(a, y);
 			}
 			memcpy(last, s->lsf, sizeof(last));
 			have_last = 1;
@@ -882,12 +956,13 @@ static void put16(FILE *f, uint16_t v)
 }
 
 /* Narrow the gap between loud vowels and quiet consonants: the level,
- * followed over about 10 ms, is raised to the power 1 - COMPRESS. */
+ * followed over about 40 ms (long enough not to ripple with each pitch
+ * period), is raised to the power 1 - COMPRESS. */
 static const double COMPRESS = 0.2;
 
 static void compress(void)
 {
-	size_t i, w = V.rate / 100;
+	size_t i, w = V.rate / 25;
 	double env = 0, top = 1e-9, *lev;
 
 	if (COMPRESS <= 0 || !nout)
@@ -1038,8 +1113,11 @@ int main(int argc, char **argv)
 	if (strcmp(voice, "sam"))
 		rate /= 0.82;
 
-	if (!strcmp(voice, "sam"))
+	if (!strcmp(voice, "sam")) {
 		eq = eq_sam;
+		PF_NUM = 0.5;
+		PF_DEN = 0.75;
+	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
 	snprintf(path, sizeof(path), "%s/%s.tree", dir, voice);

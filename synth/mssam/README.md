@@ -46,6 +46,8 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
    vowels and quiet consonants is narrowed a little, and a treble lift
    restores the brightness of the original recordings. Sam also gets a
    tone correction, because his units come out darker above 2.5 kHz than
-   his own voice.
+   his own voice, and a formant postfilter (as speech codecs use) that
+   clears the haze between his formants. When a phrase pauses, the filter
+   rings out instead of stopping dead.
 
 docs/mssam-format.md describes the voice data.
