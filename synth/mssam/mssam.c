@@ -1075,11 +1075,15 @@ static void usage(void)
 	exit(2);
 }
 
+/* Sam's pace against his units' own: a little quicker than they were
+ * recorded.  Mike and Mary keep theirs. */
+#define SAM_PACE 0.9
+
 int main(int argc, char **argv)
 {
 	const char *dir = getenv("MSSAM_DIR") ? getenv("MSSAM_DIR") : VOICEDIR;
 	const char *voice = "sam", *outp = NULL;
-	double rate = 0.82, pitch = 1;	/* Sam's pace */
+	double rate = SAM_PACE, pitch = 1;
 	char path[4096], text[8192] = "";
 	int i;
 	FILE *f;
@@ -1111,7 +1115,7 @@ int main(int argc, char **argv)
 	    strcmp(voice, "mike-tel") && strcmp(voice, "mary-tel"))
 		die("unknown voice %s (sam, mike, mary, mike-tel or mary-tel)", voice);
 	if (strcmp(voice, "sam"))
-		rate /= 0.82;
+		rate /= SAM_PACE;
 
 	if (!strcmp(voice, "sam")) {
 		eq = eq_sam;
