@@ -715,6 +715,11 @@ static void stretch(const float *p, double *e, int n)
 /* The loudness of a unit's first frames leans toward the end of the unit
  * before, so that joins do not jump. */
 static const double JOIN = 0.6;
+/* Each pitch pulse is blended with the one before: the stored pulses vary
+ * more from one to the next than Sam's own speech does, which sounds rough. */
+static const double SMOOTH = 0.7;
+static float sper[1024];
+static int have_per;
 static double last_gain;
 
 static double gain_at(double g, int k)
@@ -806,13 +811,21 @@ static void render(double rate, double pitch)
 				/* the stored period is scaled to V.period points:
 				 * stretch it back to its recorded length, then cut
 				 * or pad it to the new period */
-				stretch(s->period, e, L0);
+				if (SMOOTH > 0 && have_per) {
+					for (k = 0; k < V.period; k++)
+						sper[k] = SMOOTH * sper[k] + (1 - SMOOTH) * s->period[k];
+				} else {
+					memcpy(sper, s->period, V.period * sizeof(float));
+				}
+				have_per = 1;
+				stretch(sper, e, L0);
 				for (k = 0; k < L0; k++)
 					sum += e[k] * e[k];
 				for (; k < len; k++)
 					e[k] = 0;
 				g = gain_at(s->gain, sf) / (sqrt(sum / L0) + 1e-9);
 			} else {
+				have_per = 0;
 				for (k = 0; k < len; k++) {
 					e[k] = noise();
 					sum += e[k] * e[k];
@@ -868,11 +881,45 @@ static void put16(FILE *f, uint16_t v)
 	fwrite(b, 1, 2, f);
 }
 
+/* Narrow the gap between loud vowels and quiet consonants: the level,
+ * followed over about 10 ms, is raised to the power 1 - COMPRESS. */
+static const double COMPRESS = 0.2;
+
+static void compress(void)
+{
+	size_t i, w = V.rate / 100;
+	double env = 0, top = 1e-9, *lev;
+
+	if (COMPRESS <= 0 || !nout)
+		return;
+	lev = xmalloc(nout * sizeof(double));
+	for (i = 0; i < nout; i++) {
+		env += (out[i] * out[i] - env) / w;
+		lev[i] = sqrt(env);
+		if (lev[i] > top)
+			top = lev[i];
+	}
+	/* the same backwards, so the level does not lag */
+	for (env = lev[nout - 1] * lev[nout - 1], i = nout; i-- > 0;) {
+		env += (out[i] * out[i] - env) / w;
+		lev[i] = (lev[i] + sqrt(env)) / 2;
+	}
+	for (i = 0; i < nout; i++) {
+		double l = lev[i] / top;
+		if (l > 1e-3)
+			out[i] *= pow(l, -COMPRESS);
+		else
+			out[i] *= pow(1e-3, -COMPRESS);
+	}
+	free(lev);
+}
+
 static void write_wav(FILE *f)
 {
 	double peak = 1e-9;
 	size_t i;
 
+	compress();
 	for (i = 0; i < nout; i++)
 		if (fabs(out[i]) > peak)
 			peak = fabs(out[i]);

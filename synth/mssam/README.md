@@ -41,7 +41,9 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
    the shape measured from Sam's own recordings (Mike and Mary are scaled
    to their own pitch, from their tone tables). The spectrum glides from
    frame to frame, the loudness of a unit's first frames leans toward the
-   unit before it, and a treble lift restores the brightness of the
-   original recordings.
+   unit before it, each pitch pulse is blended with the one before (the
+   stored pulses are rougher than Sam's speech), the gap between loud
+   vowels and quiet consonants is narrowed a little, and a treble lift
+   restores the brightness of the original recordings.
 
 docs/mssam-format.md describes the voice data.
