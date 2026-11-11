@@ -82,4 +82,6 @@ voices, belong to their owners:
   <https://github.com/dectalk/dectalk>.
 - **SAM** (`sam-*`): Software Automatic Mouth, Don't Ask Software, 1982 (now
   SoftVoice, Inc.). Built from the C port at <https://github.com/s-macke/SAM>.
-- **MacInTalk** (`mac-*`): Apple's voices, spoken by macOS's `say`.
+- **MacInTalk and PlainTalk** (`mac-*`): Apple's voices (MacinTalk 3, and
+  the PlainTalk MacinTalk Pro voices Victoria, Agnes, Bruce and Vicki),
+  spoken by macOS's `say`.

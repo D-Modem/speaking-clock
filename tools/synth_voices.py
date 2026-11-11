@@ -121,10 +121,17 @@ SAM = {
     "extra-terrestrial": (100, 64, 150, 200, "SAM Extra-Terrestrial"),
 }
 
-MAC = ["Fred", "Ralph", "Junior", "Kathy", "Albert", "Bahh",
-       "Bells", "Boing", "Bubbles", "Cellos", "Trinoids", "Whisper",
-       "Zarvox", "Bad News", "Good News", "Wobble", "Jester", "Organ",
-       "Superstar"]
+# macOS's own say speaks them.  The MacinTalk 3 voices (1993) and the
+# PlainTalk ones (MacinTalk Pro, 1994-95, the voices of System 7.5 to Mac
+# OS 9).  Which ones a Mac still has depends on its macOS: say -v '?'.
+MAC_FAMILY = {
+    "MacInTalk": ["Fred", "Ralph", "Junior", "Kathy", "Albert", "Bahh",
+                  "Bells", "Boing", "Bubbles", "Cellos", "Trinoids", "Whisper",
+                  "Zarvox", "Bad News", "Good News", "Wobble", "Jester", "Organ",
+                  "Superstar", "Princess"],
+    "PlainTalk": ["Victoria", "Agnes", "Bruce", "Vicki"],
+}
+MAC = {v: f for f, vs in MAC_FAMILY.items() for v in vs}
 
 last_request = [0.0]
 
@@ -174,6 +181,12 @@ def sam(vid, text, out):
                    check=True, stdout=subprocess.DEVNULL)
 
 
+def mac_check(vid):
+    have = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
+    if not any(line.split("  ")[0].strip() == vid for line in have.splitlines()):
+        sys.exit("this Mac has no voice %r (say -v '?' lists the ones it has)" % vid)
+
+
 def mac(vid, text, out):
     aiff = out + ".aiff"
     subprocess.run(["say", "-v", vid, "-o", aiff, text], check=True)
@@ -188,8 +201,10 @@ ENGINES = {
                 "DECtalk (Digital Equipment Corp.), https://github.com/dectalk/dectalk"),
     "sam": (sam, SAM, lambda v: (SAM[v][4], "Software Automatic Mouth (Commodore 64, 1982)"),
             "SAM, Don't Ask Software (now SoftVoice, Inc.), C port https://github.com/s-macke/SAM"),
-    "mac": (mac, {v: v for v in MAC}, lambda v: ("MacInTalk " + v, "Apple MacInTalk voice"),
-            "Apple MacInTalk, spoken by macOS's say"),
+    "mac": (mac, MAC, lambda v: ("%s %s" % (MAC[v], v),
+                                 "Apple PlainTalk (MacinTalk Pro) voice" if MAC[v] == "PlainTalk"
+                                 else "Apple MacInTalk 3 voice"),
+            "Apple MacInTalk / PlainTalk, spoken by macOS's say"),
 }
 
 
@@ -203,6 +218,8 @@ def finish(raw, out):
 def build(out_dir, engine, vid):
     fn, table, info, source = ENGINES[engine]
     name, desc = info(vid)
+    if engine == "mac":
+        mac_check(vid)
     d = os.path.join(out_dir, "%s-%s" % (engine, vid.lower().replace(" ", "-")))
     if os.path.exists(d):
         shutil.rmtree(d)

@@ -3,7 +3,7 @@
 A telephone speaking clock for Asterisk and FreePBX. Its voices include the
 UK's TIM (Pat Simmons), Australia's Gordon Gow, the whole Steve's Talking
 Clock library of talking clocks and watches, and classic speech synthesisers
-(Microsoft Sam and the other SAPI4 voices, DECtalk, SAM, MacInTalk), each
+(Microsoft Sam and the other SAPI4 voices, DECtalk, SAM, MacInTalk, PlainTalk), each
 able to give the time to the second.
 
 - **`asterisk/`**: `app_speakingclock`, the `SpeakingClock()` dialplan
@@ -110,7 +110,8 @@ tools/synth_voices.py --list                        # the voices it knows
 tools/synth_voices.py voices sapi4:microsoft-sam    # SAPI4, via tetyys.com
 DECTALK_SAY=~/dectalk/dist/say tools/synth_voices.py voices dectalk:paul
 SAM=~/SAM/sam tools/synth_voices.py voices sam:sam
-tools/synth_voices.py voices mac:Fred                # on a Mac
+tools/synth_voices.py voices mac:Fred                # MacInTalk, on a Mac
+tools/synth_voices.py voices mac:Victoria            # PlainTalk, on a Mac
 ```
 
 ## Licence
