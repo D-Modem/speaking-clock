@@ -105,3 +105,11 @@ voices, belong to their owners:
   the Internet Archive. MacInTalk and Macintosh are trademarks of Apple
   Inc. The letter-to-sound rules in `synth/macintalk/rules.h` are from NRL
   Report 7948 (1976), a US government work in the public domain.
+- **PlainTalk, live** (`live-plaintalk-*`): no recordings in this
+  repository. Each sentence is spoken on the Asterisk machine by the same
+  `synth/macintalk`, which joins the recorded diphones of Apple's PlainTalk
+  (MacinTalk Pro) voices Agnes, Bruce and Victoria. Those recordings are
+  Apple's (© Apple Computer, Inc. 1992-1998) and are not in this
+  repository: `tools/fetch-macintalk.py` downloads them from a Mac OS 8.6
+  disk image on the Internet Archive. PlainTalk is a trademark of Apple
+  Inc.

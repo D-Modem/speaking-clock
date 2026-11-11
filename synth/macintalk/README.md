@@ -4,13 +4,16 @@ A speech synthesiser for Linux that speaks with the MacInTalk 3 voices of
 classic Mac OS: Fred, Ralph, Kathy, Junior, Princess, Zarvox, Trinoids,
 Whisper, the singing voices (Cellos, Pipe Organ, Good News, Bad News) and
 the novelty ones (Bells, Boing, Bubbles, Albert, Bahh, Deranged,
-Hysterical).
+Hysterical). It also speaks with the PlainTalk voices Agnes, Bruce and
+Victoria, by joining their recorded diphones.
 
 It is a clean-room program. It has no Apple code and doesn't run, emulate or
 load any. It reads only the voices' data, which `tools/fetch-macintalk.py`
-takes from a Mac OS 8.1 disk image on the Internet Archive when you build
-it. Apple's files are not in this repository. See
-[docs/macintalk-format.md](../../docs/macintalk-format.md) for what the
+takes from Mac OS 8.1 and 8.6 disk images on the Internet Archive when you
+build it (the 8.6 one is a RAR archive: install `unar` or `unrar`, or the
+PlainTalk voices are skipped). Apple's files are not in this repository.
+See [docs/macintalk-format.md](../../docs/macintalk-format.md) and
+[docs/plaintalk-format.md](../../docs/plaintalk-format.md) for what the
 voice data holds and what is ours.
 
 ```
@@ -20,6 +23,7 @@ sudo make install        # /usr/local/bin/macintalk, /usr/local/share/macintalk
 
 macintalk -l
 macintalk -v zarvox -o zarvox.wav "That looks like a peaceful planet."
+macintalk -v victoria -o victoria.wav "Hello, my name is Victoria."
 macintalk -v fred "At the third stroke, it will be ten oh five." | aplay
 ```
 
@@ -37,9 +41,9 @@ Apple's phoneme symbols (`1EHkspIHrIHmEHnt`), `[[inpt TEXT]]` back,
 
 ## For the speaking clock
 
-The `live-macintalk-*` voices in `voices/` run this program for each
-sentence (docs/voice-format.md, mode=tts). Install it, then, if it isn't on
-Asterisk's PATH, tell speakingclock.conf where it is:
+The `live-macintalk-*` and `live-plaintalk-*` voices in `voices/` run this
+program for each sentence (docs/voice-format.md, mode=tts). Install it,
+then, if it isn't on Asterisk's PATH, tell speakingclock.conf where it is:
 
 ```
 tts_program_macintalk=/usr/local/bin/macintalk
@@ -68,3 +72,9 @@ The voice data must be in one of the default folders (or set
 
 Pronunciation and rhythm are ours, so the voices sound like MacInTalk 3's
 voices rather than exactly like them.
+
+The PlainTalk voices (plaintalk.c) share steps 1 to 3. Then each phoneme is
+the second half of a recorded diphone into it and the first half of one out
+of it, decoded from the voice's codebook, stretched to its length by
+repeating or dropping periods, and each voiced period is resampled to the
+pitch. Their high quality versions aren't supported yet.

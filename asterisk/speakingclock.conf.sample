@@ -25,7 +25,8 @@
 
 ; The live DECtalk, SAM and MacInTalk voices run the synthesiser on this
 ; machine, with no server.  Default: dectalk, sam and macintalk, found on
-; the PATH.  macintalk is synth/macintalk in this repository.
+; the PATH.  macintalk is synth/macintalk in this repository (it speaks the
+; MacInTalk 3 and the PlainTalk voices).
 ;tts_program_dectalk=/opt/dectalk/say
 ;tts_program_sam=/usr/local/bin/sam
 ;tts_program_macintalk=/usr/local/bin/macintalk

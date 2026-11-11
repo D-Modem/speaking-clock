@@ -12,8 +12,8 @@ Usage: tools/synth_voices.py OUT VOICE...    (OUT is normally ./voices)
 
 --live writes a live voice instead (mode=tts, live-<engine>-<voice>): no
 clips, the module runs the synthesiser on the Asterisk machine for each
-sentence as it is needed (dectalk, sam, mssam and macintalk only;
-tts_program_dectalk, tts_program_sam, tts_program_mssam and
+sentence as it is needed (dectalk, sam, mssam, macintalk and plaintalk
+only; tts_program_dectalk, tts_program_sam, tts_program_mssam and
 tts_program_macintalk in speakingclock.conf say where they are).
 
 Engines (a VOICE is engine:name, see --list):
@@ -34,6 +34,9 @@ Engines (a VOICE is engine:name, see --list):
            by our own synthesiser, synth/macintalk, from Apple's voice data
            (tools/fetch-macintalk.py gets it).  $MACINTALK is its program,
            $MACINTALK_VOICES the voice folder.  Works with --live.
+  plaintalk  The PlainTalk voices (Agnes, Bruce, Victoria), Apple's recorded
+           diphones joined by the same program, synth/macintalk.  Works
+           with --live.
 
 Needs ffmpeg and sox.
 """
@@ -165,6 +168,13 @@ MACINTALK = {
     "hysterical": ("Hysterical", "speaking through laughter"),
 }
 
+# The PlainTalk (MacinTalk Pro) voices of Mac OS 8.6, spoken by synth/macintalk.
+PLAINTALK = {
+    "agnes": ("Agnes", "female"),
+    "bruce": ("Bruce", "male"),
+    "victoria": ("Victoria", "female"),
+}
+
 last_request = [0.0]
 
 
@@ -266,6 +276,11 @@ ENGINES = {
                              "MacInTalk 3 voice (%s)" % MACINTALK[v][1]),
                   "synth/macintalk (this repository, clean-room) reading Apple's "
                   "MacInTalk 3 voice data (Mac OS 8.1), fetched by tools/fetch-macintalk.py"),
+    "plaintalk": (macintalk, PLAINTALK,
+                  lambda v: ("PlainTalk %s" % PLAINTALK[v][0],
+                             "PlainTalk (MacinTalk Pro) voice, %s" % PLAINTALK[v][1]),
+                  "synth/macintalk (this repository, clean-room) joining Apple's recorded "
+                  "PlainTalk diphones (Mac OS 8.6), fetched by tools/fetch-macintalk.py"),
 }
 
 
@@ -309,7 +324,7 @@ def build_live(out_dir, engine, vid):
     elif engine == "mssam":
         how = 'command={program:mssam} -v %s -o {out} "{text}"' % vid
         by = "synth/mssam, run here (tts_program_mssam)"
-    elif engine == "macintalk":
+    elif engine in ("macintalk", "plaintalk"):
         how = 'command={program:macintalk} -v %s -o {out} "{text}"' % vid
         by = "synth/macintalk, run here (tts_program_macintalk)"
     else:
@@ -321,7 +336,7 @@ def build_live(out_dir, engine, vid):
     if engine == "mssam":
         owners = ("; The synthesiser is ours; the voice data it reads is Microsoft's and is\n"
                   "; not in this repository (tools/fetch-mssam.py downloads it); see NOTICE.md.")
-    elif engine == "macintalk":
+    elif engine in ("macintalk", "plaintalk"):
         owners = ("; The synthesiser is ours; the voice data it reads is Apple's and is\n"
                   "; not in this repository (tools/fetch-macintalk.py downloads it); see NOTICE.md.")
     text = "At the third stroke, it will be {hour} {minute} {seconds}."
@@ -344,8 +359,10 @@ def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--live":
         for spec in sys.argv[3:]:
             engine, _, vid = spec.partition(":")
-            if engine not in ("dectalk", "sam", "mssam", "macintalk") or vid not in ENGINES[engine][1]:
-                sys.exit("--live takes dectalk, sam, mssam and macintalk voices (see --list)")
+            if (engine not in ("dectalk", "sam", "mssam", "macintalk", "plaintalk")
+                    or vid not in ENGINES[engine][1]):
+                sys.exit("--live takes dectalk, sam, mssam, macintalk and plaintalk voices "
+                         "(see --list)")
             build_live(sys.argv[2], engine, vid)
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from voice_index import write_index

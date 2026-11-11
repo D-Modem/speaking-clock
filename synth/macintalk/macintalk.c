@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
  *
  * macintalk: a speech synthesiser that speaks with the MacInTalk 3 voices
- * (Fred, Ralph, Kathy, Zarvox ...) of classic Mac OS.
+ * (Fred, Ralph, Kathy, Zarvox ...) and the PlainTalk voices (Agnes, Bruce,
+ * Victoria) of classic Mac OS.
  *
  * This is a clean-room program.  It contains no Apple code and does not
  * run, emulate or load any.  It reads only the voices' data, the 'ttvd'
@@ -13,6 +14,11 @@
  * formant synthesiser in the style of D. H. Klatt's 1980 design.  The voice
  * gives the synthesiser its pitch, speed, glottal source spectrum, formant
  * and bandwidth settings, breathiness, chorus, melody and sampled sound.
+ *
+ * The PlainTalk voices are recorded diphones instead (plaintalk.c,
+ * docs/plaintalk-format.md): for them the same text front end, timing and
+ * pitch drive a diphone joiner that reads the voice's 'gtss' 3 data, taken
+ * from a Mac OS 8.6 disk image.
  *
  *   macintalk [-v voice] [-d voicedir] [-o out.wav] [-r wpm] [-p hz] text...
  *   macintalk -l [-d voicedir]          list the voices
@@ -37,6 +43,7 @@
 #define FS 22050
 #define NHARM 47
 #define MAXSEG 4096
+#define PT_RATE 175         /* words per minute for the PlainTalk voices */
 #define BLOCK 32            /* samples between parameter updates */
 
 static double frand(void)
@@ -1162,6 +1169,8 @@ static float *synth(const struct voice *v, double base, int *nout)
 	return out;
 }
 
+#include "plaintalk.c"
+
 /* ---- output ---------------------------------------------------------------- */
 
 static void put16(FILE *f, int v) { fputc(v & 0xff, f); fputc((v >> 8) & 0xff, f); }
@@ -1225,6 +1234,8 @@ int main(int argc, char **argv)
 	double rate = 0, pitch = 0;
 	int list = 0, show = 0, i, n;
 	struct voice v;
+	struct ptvoice ptv;
+	int pt = 0;
 	float *pcm;
 
 	for (i = 1; i < argc; i++) {
@@ -1270,6 +1281,13 @@ int main(int argc, char **argv)
 					printf("%-12s %-12s %3d Hz %3d wpm  %s\n", id, v.name, v.w[W_PITCH],
 					       v.w[W_RATE], v.comment);
 			}
+			if (l > 5 && !strcmp(e->d_name + l - 5, ".gtss") && l - 5 < sizeof(id)) {
+				memcpy(id, e->d_name, l - 5);
+				id[l - 5] = 0;
+				if (!pt_load(&ptv, dir, id))
+					printf("%-12s %-12s %3d Hz %3d wpm  PlainTalk%s\n", id, id,
+					       FS / ptv.nom, PT_RATE, ptv.dim == 2 ? ", high quality" : "");
+			}
 		}
 		closedir(d);
 		return 0;
@@ -1279,7 +1297,15 @@ int main(int argc, char **argv)
 	for (i = 0; vname[i] && i < (int)sizeof(id) - 1; i++)
 		id[i] = vname[i] == ' ' ? '-' : (char)tolower((unsigned char)vname[i]);
 	id[i] = 0;
-	if (voice_load(&v, dir, id)) {
+	if (!pt_load(&ptv, dir, id)) {
+		/* a PlainTalk voice: our prosody, its recorded diphones */
+		pt = 1;
+		memset(&v, 0, sizeof(v));
+		snprintf(v.name, sizeof(v.name), "%s", id);
+		v.w[W_PITCH] = FS / ptv.nom;
+		v.w[W_PMOD] = 100;
+		v.w[W_RATE] = PT_RATE;
+	} else if (voice_load(&v, dir, id)) {
 		fprintf(stderr, "macintalk: no voice %s in %s (run tools/fetch-macintalk.py)\n",
 		        vname, dir);
 		return 1;
@@ -1307,7 +1333,7 @@ int main(int argc, char **argv)
 		for (i = 0; i < nseg; i++)
 			fprintf(stderr, "%7.1f %6.1f %-3s k%d s%d\n", segs[i].t0, segs[i].dur,
 			        ph[segs[i].ph].name, segs[i].kind, segs[i].stress);
-	pcm = synth(&v, pitch, &n);
+	pcm = pt ? pt_synth(&ptv, &n) : synth(&v, pitch, &n);
 	if (!pcm)
 		return 1;
 	if (outname) {

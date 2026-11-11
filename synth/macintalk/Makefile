@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #   make                    build macintalk
-#   make voices             fetch Apple's MacInTalk 3 voice data (about 50 MB download)
+#   make voices             fetch Apple's voice data (MacInTalk 3 and PlainTalk, about 180 MB download)
 #   make install            install the program and the voices
 #   make test               speak a sentence with every voice
 PREFIX ?= /usr/local
@@ -9,7 +9,7 @@ CC ?= cc
 CFLAGS ?= -O2 -Wall -Wextra -Wno-missing-field-initializers
 SOURCES ?= ../../sources/macintalk
 
-macintalk: macintalk.c rules.h
+macintalk: macintalk.c plaintalk.c rules.h
 	$(CC) $(CFLAGS) -o $@ macintalk.c -lm
 
 voices: $(SOURCES)/fred.ttvd
@@ -21,6 +21,7 @@ install: macintalk voices
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(VOICEDIR)
 	install -m 755 macintalk $(DESTDIR)$(PREFIX)/bin/macintalk
 	install -m 644 $(SOURCES)/*.ttvd $(SOURCES)/*.ttvw $(DESTDIR)$(VOICEDIR)/
+	for f in $(SOURCES)/*.gtss; do [ ! -f "$$f" ] || install -m 644 "$$f" $(DESTDIR)$(VOICEDIR)/; done
 
 test: macintalk voices
 	@for v in $$(./macintalk -d $(SOURCES) -l | cut -d' ' -f1); do \

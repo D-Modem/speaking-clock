@@ -72,6 +72,9 @@ Written by tools/voice_index.py. Every recording belongs to its original owner (
 | `live-mssam-mary` | Microsoft Mary, live | tts | mssam synthesiser |
 | `live-mssam-mike` | Microsoft Mike, live | tts | mssam synthesiser |
 | `live-mssam-sam` | Microsoft Sam, live | tts | mssam synthesiser |
+| `live-plaintalk-agnes` | PlainTalk Agnes, live | tts | plaintalk synthesiser |
+| `live-plaintalk-bruce` | PlainTalk Bruce, live | tts | plaintalk synthesiser |
+| `live-plaintalk-victoria` | PlainTalk Victoria, live | tts | plaintalk synthesiser |
 | `live-sam-elf` | SAM Elf, live | tts | sam synthesiser |
 | `live-sam-extra-terrestrial` | SAM Extra-Terrestrial, live | tts | sam synthesiser |
 | `live-sam-little-old-lady` | SAM Little Old Lady, live | tts | sam synthesiser |

@@ -1,29 +1,39 @@
 #!/usr/bin/env python3
 """SPDX-License-Identifier: GPL-2.0-or-later
 
-Fetch the MacInTalk 3 voice files for synth/macintalk at build time.
+Fetch the MacInTalk voice files for synth/macintalk at build time.
 
-Apple's files are not in this repository.  This script downloads a Mac OS
-8.1 hard disk image from the Internet Archive, checks its SHA-256, finds
-the voice files in System Folder:Extensions:Voices on the disk's HFS
-volume, and writes each voice's two resources as plain files:
+Apple's files are not in this repository.  This script downloads two hard
+disk images from the Internet Archive, checks their SHA-256, finds the voice
+files in System Folder:Extensions:Voices on each disk's HFS volume, and
+writes the voices' data resources as plain files:
 
+  from Mac OS 8.1, the MacInTalk 3 voices (Fred, Ralph, Kathy ...):
     OUT/<voice>.ttvd   the voice description (parameters, see
                        docs/macintalk-format.md)
     OUT/<voice>.ttvw   the voice's sampled sound, for the voices that
                        have one (Bells, Boing, Cellos ...)
+  from Mac OS 8.6, the PlainTalk voices (Agnes, Bruce, Victoria):
+    OUT/<voice>.gtss   the recorded diphones (see docs/plaintalk-format.md)
 
-Only data is read.  Nothing from the disk is run, and the MacinTalk 3
-extension itself (Apple's code) is not extracted.
+Only data is read.  Nothing from the disks is run, and Apple's code (the
+MacinTalk 3 and MacinTalk Pro extensions, and the code resources in the
+PlainTalk voice files) is not extracted.
 
 Usage: tools/fetch-macintalk.py [OUT]     (default: sources/macintalk)
-       tools/fetch-macintalk.py --image FILE.hda|FILE.zip [OUT]
+       tools/fetch-macintalk.py --image FILE.hda|FILE.zip|FILE.exe [OUT]
+       tools/fetch-macintalk.py --no-plaintalk [OUT]
 
-Needs only Python 3 (and about 1.1 GB of free disk while it runs).
+Needs Python 3 and about 1.2 GB of free disk while it runs.  The Mac OS 8.6
+image comes as a self-extracting RAR archive, so the PlainTalk voices also
+need unar (Debian/Ubuntu package unar) or unrar; without either, they are
+skipped.
 """
 import hashlib
 import os
+import shutil
 import struct
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -32,6 +42,10 @@ import zipfile
 URL = ("https://archive.org/download/macos-8.1-basilisk-ii/"
        "macos-8.1-basilisk-ii-2026.10.1.zip")
 SHA256 = "ce6ee4ba5294182535d20bf6639f64415376e4420b3473167803315e615c97fa"
+URL_86 = ("https://archive.org/download/MacOS8.6Image-SheepShaverEmulator/"
+          "Mac%20OS%208.6%20on%20disk%20image%20%2B%20SheepShaver.exe")
+SHA256_86 = "003910efa3fc95a9c0da3f064e0e9aafafd9c2b20b11fde2e01d2f8fd9472c92"
+DSK_86 = "SheepShaver/Mac_OS_HD.dsk"
 VOICE_DIR = ("System Folder", "Extensions", "Voices")
 
 
@@ -138,50 +152,108 @@ def voice_id(name):
 
 
 def extract(hda, out):
+    """Write the voices found on the HFS disk image hda; returns how many."""
     with open(hda, "rb") as f:
         vol = HFS(f)
         voices = vol.find(VOICE_DIR)
     os.makedirs(out, exist_ok=True)
     n = 0
     for name, (ftype, creator, _, rsrc) in sorted(voices.items()):
-        if ftype != b"ttvf" or creator != b"mtk3":
-            continue  # only MacinTalk 3 voices
+        if ftype != b"ttvf":
+            continue
         res = resources(rsrc)
+        if creator == b"mtk3":      # MacinTalk 3
+            want = {"ttvd": "ttvd", "ttvw": "ttvw"}
+        elif creator == b"gala":    # MacinTalk Pro (PlainTalk)
+            if "high quality" in name:
+                continue  # coded differently; synth/macintalk can't read them yet
+            # 'gtss' 3 is the voice's recorded sound; 'gtss' 4 is code: left out
+            res = {k: v for k, v in res.items() if k == ("gtss", 3)}
+            want = {"gtss": "gtss"}
+        else:
+            continue
         for (rtype, _), (_, data) in res.items():
-            if rtype in ("ttvd", "ttvw"):
-                with open(os.path.join(out, voice_id(name) + "." + rtype), "wb") as o:
+            if rtype in want:
+                with open(os.path.join(out, voice_id(name) + "." + want[rtype]), "wb") as o:
                     o.write(data)
         n += 1
         print("voice", name)
     return n
 
 
+def fetch(url, sha, path):
+    if not os.path.exists(path):
+        print("fetch", url)
+        urllib.request.urlretrieve(url, path + ".part")
+        os.rename(path + ".part", path)
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    if h.hexdigest() != sha:
+        sys.exit("%s: SHA-256 mismatch" % path)
+
+
+def unrar(archive, member, tmp):
+    """Unpack one file of a (self-extracting) RAR archive with unar or
+    unrar; None if neither is installed."""
+    for cmd in (["unar", "-q", "-f", "-o", tmp, archive, member],
+                ["unrar", "x", "-y", "-idq", archive, member, tmp + os.sep]):
+        if shutil.which(cmd[0]):
+            subprocess.run(cmd, check=True)
+            path = os.path.join(tmp, *member.split("/"))
+            if os.path.exists(path):
+                return path
+    return None
+
+
+def unpack(image, tmp):
+    """The disk image itself, from a zip or RAR archive if it's in one."""
+    if zipfile.is_zipfile(image):
+        with zipfile.ZipFile(image) as z:
+            member = [i for i in z.namelist() if i.endswith((".hda", ".dsk", ".img"))][0]
+            print("unpack", member)
+            return z.extract(member, tmp)
+    with open(image, "rb") as f:
+        head = f.read(1 << 20)
+    if head[:2] == b"MZ" and b"Rar!\x1a\x07" in head:
+        print("unpack", DSK_86)
+        return unrar(image, DSK_86, tmp)
+    return image
+
+
 def main(argv):
-    image = None
-    if argv[:1] == ["--image"]:
-        image, argv = argv[1], argv[2:]
+    images, plaintalk = [], True
+    while argv[:1] and argv[0].startswith("--"):
+        if argv[0] == "--image" and len(argv) > 1:
+            images.append(argv[1])
+            argv = argv[2:]
+        elif argv[0] == "--no-plaintalk":
+            plaintalk = False
+            argv = argv[1:]
+        else:
+            sys.exit(__doc__)
     out = argv[0] if argv else os.path.join("sources", "macintalk")
-    with tempfile.TemporaryDirectory() as tmp:
-        if image is None:
-            image = os.path.join(out, "macos-8.1.zip")
-            os.makedirs(out, exist_ok=True)
-            if not os.path.exists(image):
-                print("fetch", URL)
-                urllib.request.urlretrieve(URL, image + ".part")
-                os.rename(image + ".part", image)
-            h = hashlib.sha256()
-            with open(image, "rb") as f:
-                for b in iter(lambda: f.read(1 << 20), b""):
-                    h.update(b)
-            if h.hexdigest() != SHA256:
-                sys.exit("%s: SHA-256 mismatch" % image)
-        if zipfile.is_zipfile(image):
-            with zipfile.ZipFile(image) as z:
-                member = [i for i in z.namelist() if i.endswith((".hda", ".dsk", ".img"))][0]
-                print("unpack", member)
-                image = z.extract(member, tmp)
-        if not extract(image, out):
-            sys.exit("no MacinTalk 3 voices found")
+    os.makedirs(out, exist_ok=True)
+    if not images:
+        images.append(os.path.join(out, "macos-8.1.zip"))
+        fetch(URL, SHA256, images[0])
+        if plaintalk:
+            if shutil.which("unar") or shutil.which("unrar"):
+                images.append(os.path.join(out, "macos-8.6.exe"))
+                fetch(URL_86, SHA256_86, images[1])
+            else:
+                print("unar or unrar not found: skipping the PlainTalk voices")
+    found = 0
+    for image in images:
+        with tempfile.TemporaryDirectory(dir=out) as tmp:
+            disk = unpack(image, tmp)
+            if disk is None:
+                print("%s: can't unpack it (install unar or unrar)" % image)
+                continue
+            found += extract(disk, out)
+    if not found:
+        sys.exit("no voices found")
     print("voices in", out)
 
 

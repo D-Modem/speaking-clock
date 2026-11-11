@@ -158,4 +158,6 @@ not. Apple's own rules and dictionary (`ttvi` 3 to 7) could be decoded the
 same way later.
 
 The PlainTalk voices (MacInTalk Pro: Victoria, Agnes, Bruce) are recorded
-diphones, a different kind of synthesiser, and are not on this disk.
+diphones, a different kind of synthesiser, and are not on this disk. They
+come from a Mac OS 8.6 disk image instead; see
+[plaintalk-format.md](plaintalk-format.md).
