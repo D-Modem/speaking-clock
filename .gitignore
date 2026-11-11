@@ -1,3 +1,4 @@
 asterisk/app_speakingclock.so
 /sources/
 __pycache__/
+synth/mssam/mssam

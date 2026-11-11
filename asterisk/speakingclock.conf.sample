@@ -30,3 +30,7 @@
 
 ; Seconds a synthesiser program may take before it is stopped.
 ;tts_timeout=15
+
+; The live Microsoft Sam, Mike and Mary voices run synth/mssam (default:
+; mssam, found on the PATH).
+;tts_program_mssam=/usr/local/bin/mssam
