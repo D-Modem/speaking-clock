@@ -74,12 +74,20 @@ A voice with `mode=tts` has no clips. The module runs a synthesiser on the
 Asterisk machine for each announcement's whole sentence ("At the third
 stroke, it will be four fifteen and twenty seconds."), a little ahead of
 when it is needed, so the call never waits on it. The `live-dectalk-*` and
-`live-sam-*` voices run DECtalk's `say` and `sam`. Set where they are in
+`live-sam-*` voices run DECtalk's `say` and `sam`. The `live-macintalk-*`
+voices (Fred, Ralph, Kathy, Zarvox and the other 15 MacInTalk 3 voices) and
+the `live-plaintalk-*` voices (Agnes, Bruce and Victoria, standard and
+high quality) run
+[synth/macintalk](synth/macintalk), our own synthesiser, which reads
+Apple's voice data (`cd synth/macintalk && make && make voices && sudo make
+install` builds it and fetches the data; the PlainTalk voices also need
+`unar` or `unrar` to unpack their disk image). Set where they are in
 speakingclock.conf:
 
 ```
 tts_program_dectalk=/opt/dectalk/say
 tts_program_sam=/usr/local/bin/sam
+tts_program_macintalk=/usr/local/bin/macintalk
 ```
 
 The `live-mssam-*` voices (Microsoft Sam, Mike and Mary, and Mike and Mary
@@ -119,6 +127,9 @@ SAM=~/SAM/sam tools/synth_voices.py voices sam:sam
 MSSAM=synth/mssam/mssam tools/synth_voices.py --live voices mssam:sam  # live-mssam-sam
 tools/synth_voices.py voices mac:Fred                # MacInTalk, on a Mac
 tools/synth_voices.py voices mac:Victoria            # PlainTalk, on a Mac
+tools/synth_voices.py voices macintalk:fred          # MacInTalk 3, synth/macintalk
+tools/synth_voices.py --live voices macintalk:zarvox # live-macintalk-zarvox
+tools/synth_voices.py --live voices plaintalk:agnes  # live-plaintalk-agnes
 ```
 
 ## Licence

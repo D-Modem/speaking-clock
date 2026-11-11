@@ -96,3 +96,21 @@ voices, belong to their owners:
 - **MacInTalk and PlainTalk** (`mac-*`): Apple's voices (MacinTalk 3, and
   the PlainTalk MacinTalk Pro voices Victoria, Agnes, Bruce and Vicki),
   spoken by macOS's `say`.
+- **MacInTalk 3, live** (`live-macintalk-*`): no recordings. Each sentence
+  is spoken on the Asterisk machine by `synth/macintalk`, our own
+  synthesiser (GPL-2.0-or-later, like the rest of this repository), which
+  reads the voice data of Apple's MacInTalk 3 voices. That data is Apple's
+  (© Apple Computer, Inc. 1992-1995) and is not in this repository:
+  `tools/fetch-macintalk.py` downloads it from a Mac OS 8.1 disk image on
+  the Internet Archive. MacInTalk and Macintosh are trademarks of Apple
+  Inc. The letter-to-sound rules in `synth/macintalk/rules.h` are from NRL
+  Report 7948 (1976), a US government work in the public domain.
+- **PlainTalk, live** (`live-plaintalk-*`): no recordings in this
+  repository. Each sentence is spoken on the Asterisk machine by the same
+  `synth/macintalk`, which joins the recorded diphones of Apple's PlainTalk
+  (MacinTalk Pro) voices Agnes, Bruce and Victoria (standard and high
+  quality). Those recordings are
+  Apple's (© Apple Computer, Inc. 1992-1998) and are not in this
+  repository: `tools/fetch-macintalk.py` downloads them from a Mac OS 8.6
+  disk image on the Internet Archive. PlainTalk is a trademark of Apple
+  Inc.
