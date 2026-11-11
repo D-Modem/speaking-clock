@@ -77,7 +77,7 @@ voices, belong to their owners:
   voice is TruVoice Adult Male #2 at the pitch and speed BonziBUDDY used.
   The live voices (`live-*`) hold no recordings: each sentence is spoken
   when it is needed, by DECtalk or SAM on the Asterisk machine.
-- **Microsoft Sam, Mike and Mary, live** (`live-mssam-*`): no recordings.
+- **Microsoft Sam, Mike and Mary (and for telephone), live** (`live-mssam-*`): no recordings.
   Each sentence is spoken on the Asterisk machine by `synth/mssam`, our own
   synthesiser (GPL-2.0-or-later, like the rest of this repository), which
   reads the voice data of Microsoft's Speech API 4 voices. That data is

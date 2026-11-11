@@ -82,7 +82,8 @@ tts_program_dectalk=/opt/dectalk/say
 tts_program_sam=/usr/local/bin/sam
 ```
 
-The `live-mssam-*` voices (Microsoft Sam, Mike and Mary) run
+The `live-mssam-*` voices (Microsoft Sam, Mike and Mary, and Mike and Mary
+for telephone) run
 [synth/mssam](synth/mssam), our own synthesiser, which reads Microsoft's
 voice data (`cd synth/mssam && make && make voices && sudo make install`
 builds it and fetches the data). Its setting is `tts_program_mssam`.

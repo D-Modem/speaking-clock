@@ -51,7 +51,9 @@ Written by tools/voice_index.py. Every recording belongs to its original owner (
 | `live-dectalk-ursula` | DECtalk Uppity Ursula, live | tts | dectalk synthesiser |
 | `live-dectalk-wendy` | DECtalk Whispering Wendy, live | tts | dectalk synthesiser |
 | `live-mssam-mary` | Microsoft Mary, live | tts | mssam synthesiser |
+| `live-mssam-mary-tel` | Microsoft Mary for Telephone, live | tts | mssam synthesiser |
 | `live-mssam-mike` | Microsoft Mike, live | tts | mssam synthesiser |
+| `live-mssam-mike-tel` | Microsoft Mike for Telephone, live | tts | mssam synthesiser |
 | `live-mssam-sam` | Microsoft Sam, live | tts | mssam synthesiser |
 | `live-sam-elf` | SAM Elf, live | tts | sam synthesiser |
 | `live-sam-extra-terrestrial` | SAM Extra-Terrestrial, live | tts | sam synthesiser |
