@@ -38,8 +38,8 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
    for the others. The frames are played through the filter at a new pace
    and with a new pitch. Each phrase starts near 100 Hz, the first stressed
    word rises above it, and the phrase sinks to about 73 Hz at the end of a sentence (before a
-   comma it falls only a little, and a sentence's last word is not
-   stressed),
+   comma it falls only a little, a sentence's last word is not
+   stressed, and its stressed last vowel is held a little longer),
    the shape measured from Sam's own recordings (Mike and Mary are scaled
    to their own pitch, from their tone tables). The spectrum glides from
    frame to frame, the loudness of a unit's first frames leans toward the
@@ -48,7 +48,9 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
    vowels and quiet consonants is narrowed a little, and a treble lift
    restores the brightness of the original recordings. Sam also gets a
    tone correction, because his vowels come out with less of the
-   2.5-4 kHz range than his own voice, louder and shorter hiss sounds (s, f, th), and a formant postfilter (as speech codecs use) that
+   2.5-4 kHz range than his own voice, louder and shorter hiss sounds (s, f, th), each frame's stored
+   loudness taken as the sound's own (so an "m" no longer drowns its
+   vowel), and a formant postfilter (as speech codecs use) that
    clears the haze between his formants. When a phrase pauses, the filter
    rings out instead of stopping dead.
 

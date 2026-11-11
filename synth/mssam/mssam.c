@@ -353,6 +353,8 @@ struct sound {
 	int ph, pos, vowel;	/* vowel: 0, or 1 + the tone */
 	float f0[2];		/* a vowel's pitch where it starts and ends, Hz */
 	int pause;		/* > 0: a pause of this many ms instead of a sound */
+	float len;		/* its length against the recording's (0: 1) */
+	int stressed;		/* a vowel with the word's main stress */
 };
 
 static struct sound snd[4096];
@@ -478,7 +480,8 @@ static void add_word(const char *w, const char *phones, int content)
 		if (p < 0)
 			continue;
 		snd[nsnd++] = (struct sound){ .ph = p,
-			.vowel = stress < 0 ? 0 : 1 + (stress == 1 && content ? T_ACCENT : T_PLAIN) };
+			.vowel = stress < 0 ? 0 : 1 + (stress == 1 && content ? T_ACCENT : T_PLAIN),
+			.stressed = stress == 1 };
 	}
 	(void)w;
 	for (int i = first; i < nsnd; i++)
@@ -547,6 +550,7 @@ static void say_number(long n, char *out, size_t sz)
  * out by ACCENT1 and later ones by ACCENT2, and the last vowel falls to
  * END at the end of a sentence, or only to MORE before a comma, where more
  * is to come.  Measured from Sam's own recordings. */
+static double FINAL_V = 1.3, FINAL_C = 0.7, GOUT;	/* GOUT: Sam only */
 static const double TOP = 102, BOTTOM = 94, ACCENT1 = 32, ACCENT2 = 22, END = 73, MORE = 98;
 
 static void end_phrase(int from, int last)
@@ -587,6 +591,13 @@ static void end_phrase(int from, int last)
 			 * word before a comma keeps its accent and falls less */
 			snd[i].f0[0] = last ? b0 : b0 + lift;
 			snd[i].f0[1] = last ? END : MORE;
+			/* he holds a sentence's last vowel when it is stressed and
+			 * clips what follows it ("Sam") */
+			if (last && snd[i].stressed) {
+				snd[i].len = FINAL_V;
+				for (int z = i + 1; z < nsnd; z++)
+					snd[z].len = FINAL_C;
+			}
 		}
 	}
 }
@@ -760,6 +771,7 @@ static double FRIC = 1;
 /* He also says them quicker than they were recorded, against his vowels. */
 static double hiss_rate = 1;
 static double last_gain;
+static int last_unvoiced;
 
 /* A formant postfilter, as speech codecs use: A(z/PF_NUM) / A(z/PF_DEN)
  * deepens the valleys between the formants, where the coded excitation
@@ -839,7 +851,8 @@ static void render(double rate, double pitch)
 
 	for (i = 0; i < nsnd; i++) {
 		struct frame *f;
-		double f0a, f0b, total, t, *src;
+		double f0a, f0b, total, t, *src, hiss_end = last_unvoiced ? last_gain : 0;
+		int seen_voiced = 0;
 		int n, l, r, unit, prev, next;
 
 		if (snd[i].pause) {
@@ -861,6 +874,7 @@ static void render(double rate, double pitch)
 			prev_y = 0;
 			have_last = 0;
 			last_gain = 0;
+			last_unvoiced = 0;
 			continue;
 		}
 		/* the sounds either side; a pause counts as silence */
@@ -893,7 +907,7 @@ static void render(double rate, double pitch)
 		/* new timing: step through the unit's frames at the new rate */
 		src = xmalloc((n + 1) * sizeof(double));
 		for (k = 0; k < n; k++)
-			src[k + 1] = src[k] + f[k].len / (rate * (f[k].voiced ? 1 : hiss_rate));
+			src[k + 1] = src[k] + f[k].len * (snd[i].len > 0 ? snd[i].len : 1) / (rate * (f[k].voiced ? 1 : hiss_rate));
 		total = src[n];
 		for (t = 0; t < total;) {
 			struct frame *s;
@@ -916,6 +930,8 @@ static void render(double rate, double pitch)
 				ne = L0 > len ? L0 : len;
 				e = realloc(e, ne * sizeof(double));
 			}
+			if (s->voiced)
+				seen_voiced = 1;
 			if (s->voiced && s->period) {
 				/* the stored period is scaled to V.period points:
 				 * stretch it back to its recorded length, then cut
@@ -939,7 +955,28 @@ static void render(double rate, double pitch)
 					e[k] = noise();
 					sum += e[k] * e[k];
 				}
-				g = FRIC * gain_at(s->gain, sf) / (sqrt(sum / len) + 1e-9);
+				g = gain_at(s->gain, sf);
+				/* a vowel's unit can start with the faded tail of the
+				 * hiss before it ("Sam"), which leaves a gap after ours:
+				 * hold it up to the hiss */
+				if (snd[i].vowel && !seen_voiced && g < hiss_end)
+					g = hiss_end;
+				g = FRIC * g / (sqrt(sum / len) + 1e-9);
+			}
+			/* the stored gain is the loudness of the sound itself, not of
+			 * its excitation: take the filter's own gain back out */
+			if (GOUT > 0) {
+				double ta[MAXORDER + 1], hm[MAXORDER] = { 0 }, E = 0;
+				lsf_to_lpc(s->lsf, ta);
+				for (k = 0; k < 400; k++) {
+					double y = k == 0;
+					for (j = 0; j < ORDER; j++)
+						y -= ta[j + 1] * hm[j];
+					memmove(hm + 1, hm, (ORDER - 1) * sizeof(double));
+					hm[0] = y;
+					E += y * y;
+				}
+				g /= pow(sqrt(E), GOUT);
 			}
 			/* the spectrum glides from the last frame's to this one's,
 			 * in steps of 32 samples, so frames do not click */
@@ -968,6 +1005,7 @@ static void render(double rate, double pitch)
 		}
 		free(src);
 		last_gain = f[n - 1].gain;
+		last_unvoiced = !f[n - 1].voiced;
 		for (k = 0; k < n; k++)
 			free(f[k].period);
 		free(f);
@@ -1027,7 +1065,7 @@ static void compress(void)
  * overall brightness, which the fit alone left short.  dB at each frequency;
  * Mike and Mary need none. */
 static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 7.3, -0.3, -1.9, 0, 1.8, 0.1, 0.9, 0.8, 0.3, 0.2, 1.8, 2.4, 0.4, 0.2 };
+static const double eq_sam[] = { 7.3, -0.3, -1.4, 1.5, 3.8, 2.6, 3.1, 2.4, 1.3, 0.2, 1.8, 2.4, 0.4, 0.2 };
 static const double *eq;
 
 static void equalise(void)
@@ -1156,6 +1194,7 @@ int main(int argc, char **argv)
 		PF_DEN = 0.75;
 		FRIC = 1.35;
 		hiss_rate = 1.3;
+		GOUT = 1;
 	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
