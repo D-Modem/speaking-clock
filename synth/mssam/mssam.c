@@ -839,6 +839,23 @@ static double gain_at(double g, int k)
 	return exp((1 - w) * log(g) + w * log(last_gain));
 }
 
+/* The RMS of a filter's impulse response: its gain on a flat excitation. */
+static double filter_gain(const double *a)
+{
+	double hm[MAXORDER] = { 0 }, E = 0;
+	int k, j;
+
+	for (k = 0; k < 400; k++) {
+		double y = k == 0;
+		for (j = 0; j < ORDER; j++)
+			y -= a[j + 1] * hm[j];
+		memmove(hm + 1, hm, (ORDER - 1) * sizeof(double));
+		hm[0] = y;
+		E += y * y;
+	}
+	return sqrt(E);
+}
+
 static void render(double rate, double pitch)
 {
 	/* the voice's own pitch against Sam's (plain syllables: 112 Hz) */
@@ -846,6 +863,7 @@ static void render(double rate, double pitch)
 	static double mem[MAXORDER];
 	static float last[MAXORDER];
 	static int have_last;
+	static double last_lvl;
 	double a[MAXORDER + 1] = { 1 }, *e = NULL;
 	int i, j, k, ne = 0;
 
@@ -912,7 +930,7 @@ static void render(double rate, double pitch)
 		for (t = 0; t < total;) {
 			struct frame *s;
 			int len, L0, sf;
-			double g, sum = 0;
+			double g = 0, sum = 0, norm, lvl;
 
 			for (k = 0; k < n - 1 && src[k + 1] <= t; k++)
 				;
@@ -948,7 +966,8 @@ static void render(double rate, double pitch)
 					for (k = len - fade; k < len; k++)
 						e[k] *= (double)(len - k) / fade;
 				}
-				g = gain_at(s->gain, sf) / (sqrt(sum / L0) + 1e-9);
+				lvl = gain_at(s->gain, sf);
+				norm = 1 / (sqrt(sum / L0) + 1e-9);
 			} else {
 				have_per = 0;
 				for (k = 0; k < len; k++) {
@@ -961,29 +980,19 @@ static void render(double rate, double pitch)
 				 * hold it up to the hiss */
 				if (snd[i].vowel && !seen_voiced && g < hiss_end)
 					g = hiss_end;
-				g = FRIC * g / (sqrt(sum / len) + 1e-9);
-			}
-			/* the stored gain is the loudness of the sound itself, not of
-			 * its excitation: take the filter's own gain back out */
-			if (GOUT > 0) {
-				double ta[MAXORDER + 1], hm[MAXORDER] = { 0 }, E = 0;
-				lsf_to_lpc(s->lsf, ta);
-				for (k = 0; k < 400; k++) {
-					double y = k == 0;
-					for (j = 0; j < ORDER; j++)
-						y -= ta[j + 1] * hm[j];
-					memmove(hm + 1, hm, (ORDER - 1) * sizeof(double));
-					hm[0] = y;
-					E += y * y;
-				}
-				g /= pow(sqrt(E), GOUT);
+				lvl = FRIC * g;
+				norm = 1 / (sqrt(sum / len) + 1e-9);
 			}
 			/* the spectrum glides from the last frame's to this one's,
 			 * in steps of 32 samples, so frames do not click */
-			if (!have_last)
+			if (!have_last) {
 				memcpy(last, s->lsf, sizeof(last));
+				last_lvl = lvl;
+			}
 			for (k = 0; k < len; k++) {
-				double y = e[k] * g;
+				double y;
+				/* and so does the loudness; for Sam the stored loudness
+				 * is the sound's own, so the filter's gain comes out */
 				if (k % 32 == 0) {
 					float l[MAXORDER];
 					double w = (k + 16.0) / len;
@@ -992,7 +1001,11 @@ static void render(double rate, double pitch)
 					for (j = 0; j < ORDER; j++)
 						l[j] = (1 - w) * last[j] + w * s->lsf[j];
 					lsf_to_lpc(l, a);
+					g = norm * ((1 - w) * last_lvl + w * lvl);
+					if (GOUT > 0)
+						g /= pow(filter_gain(a), GOUT);
 				}
+				y = e[k] * g;
 				for (j = 0; j < ORDER; j++)
 					y -= a[j + 1] * mem[j];
 				memmove(mem + 1, mem, (ORDER - 1) * sizeof(double));
@@ -1000,6 +1013,7 @@ static void render(double rate, double pitch)
 				post(a, y);
 			}
 			memcpy(last, s->lsf, sizeof(last));
+			last_lvl = lvl;
 			have_last = 1;
 			t += len;
 		}
