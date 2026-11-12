@@ -46,12 +46,13 @@ the WAV (22050 Hz, or 8000 Hz for the telephone voices, 16-bit mono) goes to sta
    unit before it, each pitch pulse is blended with the one before below
    2 kHz (the stored pulses are rougher than Sam's speech), the gap between loud
    vowels and quiet consonants is narrowed a little, and a treble lift
-   restores the brightness of the original recordings. Sam also gets a
-   tone correction, because his vowels come out with less of the
-   2.5-4 kHz range than his own voice, louder and shorter hiss sounds (s, f, th), each frame's stored
-   loudness taken as the sound's own (so an "m" no longer drowns its
-   vowel), and a formant postfilter (as speech codecs use) that
-   clears the haze between his formants. When a phrase pauses, the filter
-   rings out instead of stopping dead.
+   restores the brightness of the original recordings. Sam's settings
+   (tone correction, hiss level and pace, how much the pitch pulses are
+   smoothed and flattened, the formant postfilter, the levelling) were
+   fitted automatically to 30 of his own recordings, scoring each sound's
+   tone, its loudness over time, its length, how steady its pitch
+   pulses are and how sharply its formants stand out, and checked on 10
+   more.
+   When a phrase pauses, the filter rings out instead of stopping dead.
 
 docs/mssam-format.md describes the voice data.
