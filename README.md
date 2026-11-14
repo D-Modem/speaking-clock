@@ -1,10 +1,13 @@
 # speaking-clock
 
-A telephone speaking clock for Asterisk, FreePBX and FreeSWITCH. Its voices include the
-UK's TIM (Pat Simmons), Australia's Gordon Gow, the whole Steve's Talking
-Clock library of talking clocks and watches, and classic speech synthesisers
-(Microsoft Sam and the other SAPI4 voices, DECtalk, SAM, MacInTalk, PlainTalk), each
-able to give the time to the second.
+This is a telephone speaking clock for Asterisk, FreePBX and FreeSWITCH.
+It has these voices, and each voice can give the time to the second:
+
+- TIM of the UK (Pat Simmons).
+- Gordon Gow of Australia.
+- All of the Steve's Talking Clock library of talking clocks and watches.
+- Classic speech synthesisers: Microsoft Sam and the other SAPI4 voices,
+  DECtalk, SAM, MacInTalk and PlainTalk.
 
 - **`asterisk/`**: `app_speakingclock`, the `SpeakingClock()` dialplan
   application, written in C.
@@ -12,27 +15,31 @@ able to give the time to the second.
   with optional numbers to dial.
 - **`freeswitch/`**: `mod_speakingclock`, the `speakingclock` dialplan
   application for FreeSWITCH, the same clock as `SpeakingClock()`.
-- **`core/`**: the clock itself, with no PBX in it (mod_speakingclock is
-  built on it), and `sclock-render`, which writes what a caller would hear.
+- **`core/`**: the clock itself, without a PBX (mod_speakingclock is
+  built on it), and `sclock-render`, which writes the audio that a caller
+  hears.
 - **`voices/`**: the voices ([INDEX](voices/INDEX.md), [format](docs/voice-format.md)).
-- **`tools/`**: fetch the original recordings and rebuild `voices/`.
+- **`tools/`**: tools that download the original recordings and build
+  `voices/` again.
 
 The recordings in `voices/` belong to their original owners, and **are not
-covered by the code's licence**. See [NOTICE.md](NOTICE.md).
+covered by the code's licence**. Refer to [NOTICE.md](NOTICE.md).
 
 ## How it keeps time
 
-The old machines were one recording that every caller listened in on. The
-time mark (the third pip, or the tone) fell exactly on the second it
-announced, and callers joined part way through a sentence.
+The old machines played one recording, and all callers listened to it.
+The time mark (the third pip, or the tone) came exactly on the second
+that the recording announced. Callers started to listen in the middle of
+a sentence.
 
-`SpeakingClock()` works the same way. Each announcement is placed by sample
-against the system clock (so keep it on NTP), and the module checks the
-clock every second, jumping back to it if it drifts by more than 20 ms.
-Announcements are not queued with `Playback()`, so the clock doesn't drift
-however long a call is up. Measured on a test call, Pat Simmons' third pip
-landed within 10 ms of the second. mod_speakingclock does the same on
-FreeSWITCH.
+`SpeakingClock()` operates in the same way. The module aligns each
+announcement to the system clock, sample by sample. Thus, keep the
+system clock on NTP. The module checks the clock each second. If the
+clock drifts by more than 20 ms, the module moves back to the clock. The
+module does not put announcements in a queue with `Playback()`. Thus the
+clock does not drift, for calls of all lengths. On a test call, the third
+pip of Pat Simmons came less than 10 ms from the second.
+mod_speakingclock does the same on FreeSWITCH.
 
 ## Asterisk
 
@@ -49,45 +56,52 @@ exten => 1194,1,SpeakingClock(tim-gordon-gow,t(Australia/Sydney))
 exten => 767,1,SpeakingClock(atandt-mike,t(America/Los_Angeles)d(300))
 ```
 
-`SpeakingClock([voice[,options]])` answers and plays until the caller hangs
-up or the duration runs out. Its options:
+`SpeakingClock([voice[,options]])` answers the call. Then it plays until
+the caller hangs up or until the duration ends. These are its options:
 
 | Option | Effect |
 |---|---|
-| `t(zone)` | time zone (default: `timezone` in speakingclock.conf, else the system's) |
-| `d(seconds)` | hang up after this long; 0 means never (default `maxduration`, 180) |
+| `t(zone)` | time zone (default: `timezone` in speakingclock.conf, or if it is not set, the time zone of the system) |
+| `d(seconds)` | hang up after this number of seconds. 0 means never (default `maxduration`, 180) |
 | `h` | 24-hour clock |
 | `p(seconds)` | seconds between announcements |
-| `s(a+b+c)` | what to say, instead of the voice's sequence (docs/voice-format.md) |
-| `w` | wait for the next announcement to start, instead of joining part way |
-| `x` | return when the caller presses a key |
+| `s(a+b+c)` | the clips to say, in place of the sequence of the voice (docs/voice-format.md) |
+| `w` | wait for the start of the next announcement. Do not start in the middle of an announcement |
+| `x` | return when the caller pushes a key |
 
 CLI:
 
 - `speakingclock show voices` lists the voices.
 - `speakingclock render <voice> <unix time> <seconds> <file.sln> [zone]`
-  writes what a caller would hear, as 8 kHz signed linear, without a call.
-- `module reload app_speakingclock` rereads the config and the voices.
+  writes the audio that a caller hears, as 8 kHz signed linear, without a
+  call.
+- `module reload app_speakingclock` reads the configuration and the
+  voices again.
 
-Asterisk logs "Couldn't find application SpeakingClock in XML
-documentation" because a module built outside Asterisk's tree has no XML
-docs installed. The warning does no harm.
+Asterisk writes "Couldn't find application SpeakingClock in XML
+documentation" in the log. The cause is that a module built outside the
+source tree of Asterisk has no installed XML documentation. This warning
+does not cause a problem.
 
 ## Live voices
 
-A voice with `mode=tts` has no clips. The module runs a synthesiser on the
-Asterisk machine for each announcement's whole sentence ("At the third
-stroke, it will be four fifteen and twenty seconds."), a little ahead of
-when it is needed, so the call never waits on it. The `live-dectalk-*` and
-`live-sam-*` voices run DECtalk's `say` and `sam`. The `live-macintalk-*`
-voices (Fred, Ralph, Kathy, Zarvox and the other 15 MacInTalk 3 voices) and
-the `live-plaintalk-*` voices (Agnes, Bruce and Victoria, standard and
-high quality) run
-[synth/macintalk](synth/macintalk), our own synthesiser, which reads
-Apple's voice data (`cd synth/macintalk && make && make voices && sudo make
-install` builds it and fetches the data; the PlainTalk voices also need
-`unar` or `unrar` to unpack their disk image). Set where they are in
-speakingclock.conf:
+A voice with `mode=tts` has no clips. For each announcement, the module
+runs a synthesiser on the Asterisk machine for the full sentence ("At the
+third stroke, it will be four fifteen and twenty seconds."). It does this
+a short time before the module must have the sentence. Thus the call
+never waits for the synthesiser.
+
+- The `live-dectalk-*` and `live-sam-*` voices run `say` of DECtalk and
+  `sam`.
+- The `live-macintalk-*` voices (Fred, Ralph, Kathy, Zarvox and the other
+  15 MacInTalk 3 voices) and the `live-plaintalk-*` voices (Agnes, Bruce
+  and Victoria, standard and high quality) run
+  [synth/macintalk](synth/macintalk). This is our own synthesiser, and it
+  reads the voice data of Apple. `cd synth/macintalk && make && make voices && sudo make install`
+  builds the synthesiser and downloads the data. The PlainTalk voices
+  also must have `unar` or `unrar` to unpack their disk image.
+
+Set the locations of the programs in speakingclock.conf:
 
 ```
 tts_program_dectalk=/opt/dectalk/say
@@ -95,13 +109,13 @@ tts_program_sam=/usr/local/bin/sam
 tts_program_macintalk=/usr/local/bin/macintalk
 ```
 
-The `live-mssam-*` voices (Microsoft Sam, Mike and Mary, and Mike and Mary
-for telephone) run
-[synth/mssam](synth/mssam), our own synthesiser, which reads Microsoft's
-voice data (`cd synth/mssam && make && make voices && sudo make install`
-builds it and fetches the data). Its setting is `tts_program_mssam`.
+The `live-mssam-*` voices (Microsoft Sam, Mike and Mary, and Mike and
+Mary for telephone) run [synth/mssam](synth/mssam). This is our own
+synthesiser, and it reads the voice data of Microsoft.
+`cd synth/mssam && make && make voices && sudo make install` builds the
+synthesiser and downloads the data. Its setting is `tts_program_mssam`.
 
-See [docs/voice-format.md](docs/voice-format.md#live-voices-modetts).
+Refer to [docs/voice-format.md](docs/voice-format.md#live-voices-modetts).
 
 ## FreeSWITCH
 
@@ -112,8 +126,8 @@ sudo make install    # module, autoload_configs/speakingclock.conf.xml, voices i
 fs_cli -x 'load mod_speakingclock'
 ```
 
-Add `<load module="mod_speakingclock"/>` to `autoload_configs/modules.conf.xml`
-to load it at start. In the dialplan
+To load the module at start, add `<load module="mod_speakingclock"/>` to
+`autoload_configs/modules.conf.xml`. This is an example for the dialplan
 ([dialplan-example.xml](freeswitch/dialplan-example.xml)):
 
 ```xml
@@ -124,40 +138,48 @@ to load it at start. In the dialplan
 </extension>
 ```
 
-`speakingclock [voice] [options]` takes the same voices and options as
+`speakingclock [voice] [options]` accepts the same voices and options as
 `SpeakingClock()` above (`t(zone)`, `d(seconds)`, `h`, `p(seconds)`,
-`s(a+b+c)`, `w`, `x`), written after the voice with a space. With `x`, the
-key the caller pressed is left in the channel variable `speakingclock_key`.
-Time zones are FreeSWITCH's own, from `timezones.conf.xml`. The live voices
-work the same way: set `tts_program_*` in
+`s(a+b+c)`, `w`, `x`). Write the options after the voice, with a space.
+With `x`, the channel variable `speakingclock_key` contains the key that
+the caller pushed. The time zones are the time zones of FreeSWITCH, from
+`timezones.conf.xml`. The live voices operate in the same way. Set
+`tts_program_*` in
 [speakingclock.conf.xml](freeswitch/speakingclock.conf.xml).
 
-The module sends the clock in 8 kHz signed linear frames the length of the
-call's, and FreeSWITCH converts them to the call's codec and rate. Each
-frame comes from the clock's position against the system clock, so the
-time mark lands on the second whatever the codec.
+The module sends the clock in 8 kHz signed linear frames. The frames
+have the same length as the frames of the call. FreeSWITCH converts them
+to the codec and rate of the call. The module calculates each frame from
+the position of the clock against the system clock. Thus the time mark
+comes on the second, for all codecs.
 
 API (fs_cli):
 
 - `speakingclock voices` lists the voices.
 - `speakingclock render <voice> <unix time> <seconds> <file.sln> [zone]`
-  writes what a caller would hear, as 8 kHz signed linear.
-- `speakingclock reload` (or `reloadxml`) rereads the config and the voices.
+  writes the audio that a caller hears, as 8 kHz signed linear.
+- `speakingclock reload` (or `reloadxml`) reads the configuration and the
+  voices again.
 
-`PBX=freeswitch test/render_test.py` runs the timing test against it.
+`PBX=freeswitch test/render_test.py` runs the timing test on the module.
 
-Without a PBX, `cd core && make` builds `sclock-render`, which does the same
+Without a PBX, `cd core && make` builds `sclock-render`. It does the same
 as `speakingclock render`:
 `./sclock-render -v ../voices tim-pat-simmons 1762791295 30 out.sln Europe/London`.
 
 ## FreePBX
 
-Pack `freepbx/speakingclock` into a tarball and install it with Module Admin
-(upload), or copy it to `/var/www/html/admin/modules/` and run
-`fwconsole ma install speakingclock`. It needs app_speakingclock installed as
-above. **Applications > Speaking Clock** then lists your clocks. Each clock
-is a destination for inbound routes, IVRs and time conditions, and can have
-a number to dial from extensions.
+Do one of these procedures:
+
+- Put `freepbx/speakingclock` into a tarball and install it with Module
+  Admin (upload).
+- Copy `freepbx/speakingclock` to `/var/www/html/admin/modules/` and run
+  `fwconsole ma install speakingclock`.
+
+The module must have app_speakingclock, installed as described above.
+Then **Applications > Speaking Clock** lists your clocks. Each clock is a
+destination for inbound routes, IVRs and time conditions. Each clock can
+also have a number that extensions can dial.
 
 ## Rebuilding the voices
 
@@ -166,10 +188,11 @@ tools/fetch-sources.sh sources        # curl, git, unzip, 7z or innoextract
 tools/build_voices.py sources voices  # ffmpeg
 ```
 
-The synthesiser voices come from `tools/synth_voices.py`. It has the
-synthesiser speak every clip on its own (a whole number, "and twenty
-seconds", "At the third stroke, it will be"), so they are `tim` voices that
-give the time to the second, with the module making the pips:
+The synthesiser voices come from `tools/synth_voices.py`. This tool
+tells the synthesiser to speak each clip separately (a whole number,
+"and twenty seconds", "At the third stroke, it will be"). Thus they are
+`tim` voices that give the time to the second, and the module makes the
+pips:
 
 ```sh
 tools/synth_voices.py --list                        # the voices it knows
@@ -187,6 +210,6 @@ tools/synth_voices.py --live voices plaintalk:agnes  # live-plaintalk-agnes
 ## Licence
 
 The code is licensed under the GPL, version 2 or (at your option) any later
-version, so the module can be loaded into Asterisk (GPL-2.0). See
-[LICENSE](LICENSE). The recordings are not covered by it: see
+version. Thus Asterisk (GPL-2.0) can load the module. Refer to
+[LICENSE](LICENSE). The recordings are not covered by it. Refer to
 [NOTICE.md](NOTICE.md).
