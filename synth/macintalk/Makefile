@@ -10,7 +10,7 @@ CFLAGS ?= -O2 -Wall -Wextra -Wno-missing-field-initializers
 SOURCES ?= ../../sources/macintalk
 
 macintalk: macintalk.c plaintalk.c rules.h
-	$(CC) $(CFLAGS) -o $@ macintalk.c -lm
+	$(CC) $(CFLAGS) -DVOICEDIR='"$(VOICEDIR)"' -o $@ macintalk.c -lm
 
 voices: $(SOURCES)/fred.ttvd
 
