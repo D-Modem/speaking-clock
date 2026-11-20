@@ -52,19 +52,18 @@ WAV is 22050 Hz (8000 Hz for the telephone voices), 16-bit mono.
    - The spectrum changes smoothly from frame to frame.
    - The loudness of the first frames of a unit moves toward the unit
      before it.
-   - Below 2 kHz, the synthesiser blends each pitch pulse with the pulse
-     before it. The stored pulses are rougher than the speech of Sam.
+   - The synthesiser blends each pitch pulse with the pulse before it.
+     The stored pulses are rougher than the speech of Sam.
    - The difference between loud vowels and quiet consonants becomes a
      little smaller.
    - A treble lift gives back the brightness of the original recordings.
-6. Sam also gets these corrections:
-   - A tone correction, because his vowels have less of the 2.5-4 kHz
-     range than his own voice.
-   - Louder and shorter hiss sounds (s, f, th).
-   - The stored loudness of each frame becomes the loudness of the sound
-     itself. Thus an "m" is not louder than its vowel.
-   - A formant postfilter (as speech codecs use) that removes the haze
-     between his formants.
+6. The settings of Sam were fitted automatically to 30 of his own
+   recordings, and checked on 10 more. These settings include the tone
+   correction, the level and speed of the hiss sounds (s, f, th), how much
+   the pitch pulses are blended and flattened, the formant postfilter, and
+   the levelling. The fit compares the tone of each sound, its loudness
+   over time, its length, how steady its pitch pulses are, and how
+   clearly its formants stand out.
 7. When a phrase pauses, the filter rings until it decays. It does not
    stop suddenly.
 

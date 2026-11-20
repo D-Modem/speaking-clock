@@ -550,7 +550,7 @@ static void say_number(long n, char *out, size_t sz)
  * out by ACCENT1 and later ones by ACCENT2, and the last vowel falls to
  * END at the end of a sentence, or only to MORE before a comma, where more
  * is to come.  Measured from Sam's own recordings. */
-static double FINAL_V = 1.3, FINAL_C = 0.7, GOUT;	/* GOUT: Sam only */
+static double FINAL_V = 1.3, FINAL_C = 0.7;
 static const double TOP = 102, BOTTOM = 94, ACCENT1 = 32, ACCENT2 = 22, END = 73, MORE = 98;
 
 static void end_phrase(int from, int last)
@@ -716,7 +716,10 @@ static void emit(double v)
  * vary more from one to the next than Sam's own speech does, which sounds
  * rough.  Only the harmonics below SMOOTH_HZ are blended; above it his
  * voice is breathy, and blending there makes it buzz. */
-static const double SMOOTH = 0.7, SMOOTH_HZ = 2000;
+static double SMOOTH = 0.7, SMOOTH_HZ = 2000;
+/* Sam: the pulses' harmonics are flattened toward their mean level by
+ * this much (1: flat), as the fit to his recordings asks for */
+static double FLAT;
 static double sre[1024], sim[1024];
 static int have_per;
 
@@ -753,6 +756,18 @@ static void stretch(const float *p, double *e, int n)
 		re[k] = m * sre[k] + (1 - m) * cre[k];
 		im[k] = m * sim[k] + (1 - m) * cim[k];
 	}
+	if (FLAT > 0) {
+		double tot = 0, mean;
+		for (k = 1; k <= h; k++)
+			tot += re[k] * re[k] + im[k] * im[k];
+		mean = sqrt(tot / (h > 0 ? h : 1));
+		for (k = 1; k <= h; k++) {
+			double m = sqrt(re[k] * re[k] + im[k] * im[k]) + 1e-12;
+			double t = pow(mean / m, FLAT);
+			re[k] *= t;
+			im[k] *= t;
+		}
+	}
 	for (j = 0; j < n; j++) {
 		double v = re[0];
 		for (k = 1; k <= h; k++) {
@@ -765,7 +780,7 @@ static void stretch(const float *p, double *e, int n)
 
 /* The loudness of a unit's first frames leans toward the end of the unit
  * before, so that joins do not jump. */
-static const double JOIN = 0.6, LIFTC = 0.65;
+static double JOIN = 0.6, LIFTC = 0.65;
 /* Sam's hiss and frication come out quieter than in his recordings. */
 static double FRIC = 1;
 /* He also says them quicker than they were recorded, against his vowels. */
@@ -839,23 +854,6 @@ static double gain_at(double g, int k)
 	return exp((1 - w) * log(g) + w * log(last_gain));
 }
 
-/* The RMS of a filter's impulse response: its gain on a flat excitation. */
-static double filter_gain(const double *a)
-{
-	double hm[MAXORDER] = { 0 }, E = 0;
-	int k, j;
-
-	for (k = 0; k < 400; k++) {
-		double y = k == 0;
-		for (j = 0; j < ORDER; j++)
-			y -= a[j + 1] * hm[j];
-		memmove(hm + 1, hm, (ORDER - 1) * sizeof(double));
-		hm[0] = y;
-		E += y * y;
-	}
-	return sqrt(E);
-}
-
 static void render(double rate, double pitch)
 {
 	/* the voice's own pitch against Sam's (plain syllables: 112 Hz) */
@@ -864,6 +862,7 @@ static void render(double rate, double pitch)
 	static float last[MAXORDER];
 	static int have_last;
 	static double last_lvl;
+	static int last_voiced;
 	double a[MAXORDER + 1] = { 1 }, *e = NULL;
 	int i, j, k, ne = 0;
 
@@ -989,10 +988,13 @@ static void render(double rate, double pitch)
 				memcpy(last, s->lsf, sizeof(last));
 				last_lvl = lvl;
 			}
+			/* but not across a change between voiced and hiss */
+			if (s->voiced != last_voiced)
+				last_lvl = lvl;
+			last_voiced = s->voiced;
 			for (k = 0; k < len; k++) {
 				double y;
-				/* and so does the loudness; for Sam the stored loudness
-				 * is the sound's own, so the filter's gain comes out */
+				/* and so does the loudness */
 				if (k % 32 == 0) {
 					float l[MAXORDER];
 					double w = (k + 16.0) / len;
@@ -1002,8 +1004,6 @@ static void render(double rate, double pitch)
 						l[j] = (1 - w) * last[j] + w * s->lsf[j];
 					lsf_to_lpc(l, a);
 					g = norm * ((1 - w) * last_lvl + w * lvl);
-					if (GOUT > 0)
-						g /= pow(filter_gain(a), GOUT);
 				}
 				y = e[k] * g;
 				for (j = 0; j < ORDER; j++)
@@ -1042,7 +1042,7 @@ static void put16(FILE *f, uint16_t v)
 /* Narrow the gap between loud vowels and quiet consonants: the level,
  * followed over about 40 ms (long enough not to ripple with each pitch
  * period), is raised to the power 1 - COMPRESS. */
-static const double COMPRESS = 0.2;
+static double COMPRESS = 0.2;
 
 static void compress(void)
 {
@@ -1078,13 +1078,13 @@ static void compress(void)
  * fundamental and of 1-2 kHz, and treble set between that fit and his
  * overall brightness, which the fit alone left short.  dB at each frequency;
  * Mike and Mary need none. */
-static const double eq_hz[] = { 125, 250, 500, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
-static const double eq_sam[] = { 7.3, -0.3, -1.4, 1.5, 3.8, 2.6, 3.1, 2.4, 1.3, 0.2, 1.8, 2.4, 0.4, 0.2 };
+static const double eq_hz[] = { 80, 125, 180, 250, 350, 500, 700, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000, 8000, 9500 };
+static const double eq_sam[] = { 4.1, 10.8, 4.2, 5.5, 7.1, 7.0, 7.2, 7.2, 9.8, 6.8, 2.6, 6.9, 4.3, 3.2, 1.3, 2.9, -3.1, -0.3 };
 static const double *eq;
 
 static void equalise(void)
 {
-	enum { TAPS = 129, NF = 256 };
+	enum { TAPS = 1023, NF = 1024 };
 	double h[TAPS], g[NF + 1], *y;
 	int ne = sizeof(eq_hz) / sizeof(eq_hz[0]), k, j;
 	size_t i;
@@ -1203,12 +1203,21 @@ int main(int argc, char **argv)
 		rate /= SAM_PACE;
 
 	if (!strcmp(voice, "sam")) {
+		/* fitted to 30 of his recordings (and checked on 10 more):
+		 * each sound's tone, its loudness over time, its length, and
+		 * how steady its pitch pulses are from one to the next, and how
+		 * sharply its vowels' formants stand out */
 		eq = eq_sam;
-		PF_NUM = 0.5;
-		PF_DEN = 0.75;
-		FRIC = 1.35;
-		hiss_rate = 1.3;
-		GOUT = 1;
+		PF_NUM = 0.7125;
+		PF_DEN = 0.87;
+		FRIC = 5.2;
+		hiss_rate = 1.425;
+		FLAT = 1;
+		SMOOTH = 0.95;
+		SMOOTH_HZ = 4200;
+		LIFTC = 0.375;
+		JOIN = 0.25;
+		COMPRESS = 0.1375;
 	}
 	snprintf(path, sizeof(path), "%s/%s.inv", dir, voice);
 	load_inventory(path);
