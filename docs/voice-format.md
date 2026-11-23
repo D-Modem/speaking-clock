@@ -70,7 +70,7 @@ hours=12                ; or 24
   - `tim`: `phrase+hour+minute+seconds+pips`, each 10 s
   - `chime`: `quarter+strikes`, each 30 s
   - `hourly`: `hourly`, each 10 s
-  - `tts`: `speech+pips`, each 10 s (refer to Live voices, below)
+  - `tts`: `speech+pips`, each 10 s (refer to [Live voices](#live-voices-modetts), below)
 - **sequence** lists the items to say, joined by `+`. It can use the
   words in the table above (`intro`, `its`, `greeting`, `phrase`, `hour`,
   `minute`, `seconds`, `ampm`, `pips`, `quarter`, `strikes`, `hourly`,
